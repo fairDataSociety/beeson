@@ -8,7 +8,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<number>({ json })
     expect(beeson.abiManager.type).toBe(Type.int32)
     expect(beeson.json).toBe(json)
-    expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json).toBe(json)
+    // modificiation correctness
     beeson.json = 345
     beeson.json = beeson.json * -1
     expect(beeson.json).toBe(-345)
