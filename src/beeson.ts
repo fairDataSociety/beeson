@@ -34,7 +34,7 @@ interface AbiParams<T extends JsonValue = JsonValue> {
 }
 
 function isAbiParams<T extends JsonValue>(params: unknown): params is AbiParams<T> {
-  return typeof params === 'object' && Object.keys(params as object).includes('abi')
+  return typeof params === 'object' && Object.keys(params as object).includes('abiManager')
 }
 
 function isJsonParams<T extends JsonValue>(params: unknown): params is JsonParams<T> {
