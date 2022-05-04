@@ -97,7 +97,7 @@ export function serializeUint32(value: number): Bytes<4> {
 }
 
 export function deserializeUint32(value: Bytes<4>): number {
-  return new DataView(value).getUint32(0)
+  return new DataView(value.buffer).getUint32(0)
 }
 
 export function serializeUint16(value: number): Bytes<2> {
@@ -108,7 +108,7 @@ export function serializeUint16(value: number): Bytes<2> {
 }
 
 export function deserializeUint16(value: Bytes<2>): number {
-  return new DataView(value).getUint16(0)
+  return new DataView(value.buffer).getUint16(0)
 }
 
 export function deserializeInt<T extends Type>(type: T, value: Uint8Array): NumberValue<T> {
