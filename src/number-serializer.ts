@@ -121,17 +121,17 @@ export function deserializeInt<T extends Type>(type: T, value: Uint8Array): Numb
     case Type.int16: {
       if (value.length !== 2) throw new NumberDeserialisationError('integer', 2, value.length)
 
-      return new DataView(value).getInt16(0) as NumberValue<T>
+      return new DataView(value.buffer).getInt16(0) as NumberValue<T>
     }
     case Type.int32: {
       if (value.length !== 4) throw new NumberDeserialisationError('integer', 4, value.length)
 
-      return new DataView(value).getInt32(0) as NumberValue<T>
+      return new DataView(value.buffer).getInt32(0) as NumberValue<T>
     }
     case Type.int64: {
       if (value.length !== 8) throw new NumberDeserialisationError('integer', 8, value.length)
 
-      return new DataView(value).getBigInt64(0) as unknown as NumberValue<T>
+      return new DataView(value.buffer).getBigInt64(0) as unknown as NumberValue<T>
     }
     default: {
       throw new Error(`Type "${type}" is not supported on integer serialization`)
