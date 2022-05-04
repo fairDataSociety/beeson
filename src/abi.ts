@@ -394,15 +394,21 @@ function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
   // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
-  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length * 5)
+  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length)
 
   return new Uint8Array([
     ...serializeUint16(abiSegmentSize),
-    ...serializeUint16(flattenTypeDefs.length),
-    ...flattenBytesArray(serializedTypeDefs),
+    ...serializeUint16(abi.typeDefinitions.length),
+    ...flattenTypeDefs,
   ])
 }
 
+/**
+ *
+ * @param data raw beeson data (including the data elements at container types) without the blob header
+ * @param header blob header of the beeson data
+ * @returns
+ */
 function deserializeArrayAbi(data: Uint8Array, header: Header<Type.array>): AbiManager<Type.array> {
   let offset = 0
   const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
