@@ -217,7 +217,7 @@ export class AbiManager<T extends Type> {
   }
 
   public serializeHeader(): Bytes<64> {
-    return new Bytes([...this._obfuscationKey, ...keccak256Hash(this._version), this._type.charCodeAt(0)])
+    return new Bytes([...this._obfuscationKey, ...serializeVersion(this._version), this._type.charCodeAt(0)])
   }
 
   public static deserialize<T extends Type>(data: Uint8Array, header?: Header<T> | undefined): AbiManager<T> {
@@ -243,7 +243,7 @@ export class AbiManager<T extends Type> {
     const type = String.fromCharCode(bytes[63]) as Type
 
     // version check
-    if (!equalBytes(versionHash, keccak256Hash(Version.unpackedV0_1))) {
+    if (!equalBytes(versionHash, serializeVersion(Version.unpackedV0_1))) {
       throw new Error(`Not a valid BeeSon version hash`)
     }
     // Type check
@@ -588,4 +588,8 @@ function serializeMarkers(markers: string[]): SerializedMarkers {
 
 function segmentSize(bytesLength: number): number {
   return Math.ceil(bytesLength / SEGMENT_SIZE)
+}
+
+function serializeVersion(version: Version): Bytes<31> {
+  return keccak256Hash(version).slice(0, 31) as Bytes<31>
 }
