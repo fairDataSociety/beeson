@@ -118,11 +118,21 @@ export function flattenBytesArray(bytesArray: Uint8Array[]): Uint8Array {
 }
 
 export function segmentPaddingFromLeft(bytes: Uint8Array) {
-  return new Uint8Array([...new Uint8Array(bytes.length % SEGMENT_SIZE), ...bytes])
+  const paddingBytes = SEGMENT_SIZE - (bytes.length % SEGMENT_SIZE)
+  if (paddingBytes !== SEGMENT_SIZE) {
+    return new Uint8Array([...new Uint8Array(SEGMENT_SIZE - (bytes.length % SEGMENT_SIZE)), ...bytes])
+  }
+
+  return bytes
 }
 
 export function segmentPaddingFromRight(bytes: Uint8Array) {
-  return new Uint8Array([...bytes, ...new Uint8Array(bytes.length % SEGMENT_SIZE)])
+  const paddingBytes = SEGMENT_SIZE - (bytes.length % SEGMENT_SIZE)
+  if (paddingBytes !== SEGMENT_SIZE) {
+    return new Uint8Array([...bytes, ...new Uint8Array(SEGMENT_SIZE - (bytes.length % SEGMENT_SIZE))])
+  }
+
+  return bytes
 }
 
 /**
