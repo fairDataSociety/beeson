@@ -41,12 +41,12 @@ export function deserializeFloat<T extends Type.float32 | Type.float64>(
     case Type.float32: {
       if (value.length !== 4) throw new NumberDeserialisationError('float', 4, value.length)
 
-      return new DataView(value).getFloat32(0)
+      return new DataView(value.buffer).getFloat32(0)
     }
     case Type.float64: {
       if (value.length !== 8) throw new NumberDeserialisationError('float', 8, value.length)
 
-      return new DataView(value).getFloat64(0)
+      return new DataView(value.buffer).getFloat64(0)
     }
     default: {
       throw new Error(`Type "${type}" is not supported on float deserialization`)
