@@ -503,9 +503,9 @@ function deserializeObjectAbi(
 
   // deserialize typedefs
   const abiByteSize = abiSegmentSize * 32
-  const startMarkerByteIndex = flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
+  const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
   const typeDefinitions: TypeDefitionO[] = []
-  while (offset < offset + OBJECT_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
+  while (offset < OBJECT_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
     const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
     const markerIndex = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
@@ -520,19 +520,12 @@ function deserializeObjectAbi(
 
     try {
       assertBeeSonType(type)
-      const startDataByteIndex = abiByteSize + startSegmentIndex * 32
-      const endDataByteIndex = abiByteSize + endSegmentIndex * 32
 
+      // if deserialized type is container type, then its abi has to be deserialized in a different function call
+      const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
         segmentLength: endSegmentIndex - startSegmentIndex,
-        beeSon: BeeSon.deserialize(
-          data.slice(abiByteSize + startDataByteIndex, abiByteSize + endDataByteIndex),
-          {
-            type,
-            obfuscationKey: header.obfuscationKey,
-            version: header.version,
-          },
-        ),
+        beeSon: new BeeSon({ abiManager }),
         marker,
       })
     } catch (e) {
@@ -544,20 +537,17 @@ function deserializeObjectAbi(
   // last item typedef
   if (flattenTypeDefsLength > 0) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
-    const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
     const markerIndex = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
     const marker = deserializeString(data.slice(startMarkerByteIndex + markerIndex))
 
     try {
       assertBeeSonType(type)
 
+      // if deserialized type is container type, then its abi has to be deserialized in a different function call
+      const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
         segmentLength: null,
-        beeSon: BeeSon.deserialize(data.slice(abiByteSize + startSegmentIndex * 32), {
-          type,
-          obfuscationKey: header.obfuscationKey,
-          version: header.version,
-        }),
+        beeSon: new BeeSon({ abiManager }),
         marker,
       })
     } catch (e) {
@@ -588,13 +578,12 @@ function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
     startSegmentIndex += typeDefinition.segmentLength!
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  const typeDefinitionSize = flattenTypeDefs.length
   // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
-  const abiSegmentSize = segmentSize(4 + typeDefinitionSize * 7 + serializedMarkers.serializedMarkers.length)
+  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length)
 
   return new Uint8Array([
     ...serializeUint16(abiSegmentSize),
-    ...serializeUint16(typeDefinitionSize),
+    ...serializeUint16(serializedTypeDefs.length),
     ...flattenBytesArray(serializedTypeDefs),
     ...serializedMarkers.serializedMarkers,
   ])
