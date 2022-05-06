@@ -1,4 +1,5 @@
-import { AbiManager, generateAbi, Header, HEADER_BYTE_LENGTH, isAbiManagerType, TypeDefitionO } from './abi'
+/* eslint-disable complexity */
+import { AbiManager, generateAbi, Header, isAbiManagerType, TypeDefitionO } from './abi'
 import {
   deserializeSwarmCac,
   deserializeSwarmSoc,
@@ -10,7 +11,7 @@ import {
 import { deserializeBoolean, serializeBoolean } from './boolean-serializer'
 import { deserializeFloat, deserializeInt, serializeFloat, serliazeInt } from './number-serializer'
 import { deserializeString, serializeString } from './string-seralizer'
-import { JsonValue, NotSupportedTypeError, Type, TypeValue, ValueType } from './types'
+import { isContainerType, JsonValue, NotSupportedTypeError, Type, TypeValue, ValueType } from './types'
 import {
   assertJsonValue,
   Bytes,
@@ -129,58 +130,102 @@ export class BeeSon<T extends JsonValue> {
 
   /** deserialise unpacked data */
   public static deserialize(data: Uint8Array, header?: Header<Type>): BeeSon<JsonValue> {
-    const abiManager = AbiManager.deserialize(data, header) as AbiManager<any>
-    const offsetToData = header ? 0 : HEADER_BYTE_LENGTH
+    const { abiManager, processedBytes } = AbiManager.deserialize(data, header)
     const beeSon = new BeeSon({ abiManager })
-
-    if (isAbiManagerType(abiManager, Type.float32)) {
-      beeSon.json = deserializeFloat(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 4) as Bytes<4>)
-    } else if (isAbiManagerType(abiManager, Type.float64)) {
-      beeSon.json = deserializeFloat(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 8) as Bytes<8>)
-    } else if (isAbiManagerType(abiManager, Type.int8) || isAbiManagerType(abiManager, Type.uint8)) {
-      beeSon.json = deserializeInt(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 1))
-    } else if (isAbiManagerType(abiManager, Type.int16)) {
-      beeSon.json = deserializeInt(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 2))
-    } else if (isAbiManagerType(abiManager, Type.int32)) {
-      beeSon.json = deserializeInt(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 4))
-    } else if (isAbiManagerType(abiManager, Type.int64)) {
-      beeSon.json = deserializeInt(abiManager.type, data.slice(offsetToData + SEGMENT_SIZE - 8))
-    }
-    // string
-    else if (isAbiManagerType(abiManager, Type.string)) {
-      beeSon.json = deserializeString(data.slice(offsetToData))
-    }
-    // boolean
-    else if (isAbiManagerType(abiManager, Type.boolean)) {
-      beeSon.json = deserializeBoolean(data.slice(offsetToData + SEGMENT_SIZE - 1) as Bytes<1>)
-    }
-    // misc types
-    else if (isAbiManagerType(abiManager, Type.swarmCac)) {
-      beeSon.json = deserializeSwarmCac(data.slice(offsetToData))
-    } else if (isAbiManagerType(abiManager, Type.swarmSoc)) {
-      beeSon.json = deserializeSwarmSoc(data.slice(offsetToData))
-    }
-    // container types
-    else if (isAbiManagerType(abiManager, Type.object)) {
-      const obj: Record<string, unknown> = {}
-      for (const typeDefinition of abiManager.typeDefinitions) {
-        const key = typeDefinition.marker
-        obj[key] = typeDefinition.beeSon.json
-      }
-      beeSon.json = obj
-    } else if (isAbiManagerType(abiManager, Type.array)) {
-      const arr: unknown[] = []
-      for (const typeDefinition of abiManager.typeDefinitions) {
-        arr.push(typeDefinition.beeSon.json)
-      }
-      beeSon.json = arr
-    }
+    beeSon.deserializeData(data.slice(processedBytes))
 
     return beeSon
   }
 
   private serializeAbi(withoutBlobHeader: boolean): Uint8Array {
     return this._abiManager.serialize(withoutBlobHeader)
+  }
+
+  public deserializeData(data: Uint8Array): void {
+    // numbers
+    if (isAbiManagerType(this._abiManager, Type.float32)) {
+      this.json = deserializeFloat(
+        this._abiManager.type as Type.float32,
+        data.slice(SEGMENT_SIZE - 4) as Bytes<4>,
+      ) as T
+    } else if (isAbiManagerType(this._abiManager, Type.float64)) {
+      this.json = deserializeFloat(
+        this._abiManager.type as Type.float64,
+        data.slice(SEGMENT_SIZE - 8) as Bytes<8>,
+      ) as T
+    } else if (
+      isAbiManagerType(this._abiManager, Type.int8) ||
+      isAbiManagerType(this._abiManager, Type.uint8)
+    ) {
+      this.json = deserializeInt(this._abiManager.type, data.slice(SEGMENT_SIZE - 1)) as T
+    } else if (isAbiManagerType(this._abiManager, Type.int16)) {
+      this.json = deserializeInt(this._abiManager.type, data.slice(SEGMENT_SIZE - 2)) as T
+    } else if (isAbiManagerType(this._abiManager, Type.int32)) {
+      this.json = deserializeInt(this._abiManager.type, data.slice(SEGMENT_SIZE - 4)) as T
+    } else if (isAbiManagerType(this._abiManager, Type.int64)) {
+      this.json = deserializeInt(this._abiManager.type, data.slice(SEGMENT_SIZE - 8)) as T
+    }
+    // string
+    else if (isAbiManagerType(this._abiManager, Type.string)) {
+      this.json = deserializeString(data) as T
+    }
+    // boolean
+    else if (isAbiManagerType(this._abiManager, Type.boolean)) {
+      this.json = deserializeBoolean(data.slice(SEGMENT_SIZE - 1) as Bytes<1>) as T
+    }
+    // misc types
+    else if (isAbiManagerType(this._abiManager, Type.swarmCac)) {
+      this.json = deserializeSwarmCac(data) as T
+    } else if (isAbiManagerType(this._abiManager, Type.swarmSoc)) {
+      this.json = deserializeSwarmSoc(data) as T
+    }
+    // container types
+    else if (isAbiManagerType(this._abiManager, Type.object)) {
+      const obj: Record<string, unknown> = {}
+      let segmentOffset = 0
+      for (const typeDefinition of this._abiManager.typeDefinitions) {
+        const typeDef = typeDefinition as TypeDefitionO
+        const key = typeDef.marker
+        const offset = segmentOffset * SEGMENT_SIZE
+        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+        if (isContainerType(typeDef.beeSon.abiManager.type)) {
+          typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+            // abimanager type/obfuscationkey and else is set already on abi deserialisation
+            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+            type: typeDef.beeSon.abiManager.type,
+            version: typeDef.beeSon.abiManager.version,
+          })
+          obj[key] = typeDef.beeSon.json
+        } else {
+          typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+          obj[key] = typeDef.beeSon.json
+        }
+        segmentOffset += typeDef.segmentLength || 0
+      }
+      this.json = obj as T
+    } else if (isAbiManagerType(this._abiManager, Type.array)) {
+      const arr: unknown[] = []
+      let segmentOffset = 0
+      for (const typeDefinition of this._abiManager.typeDefinitions) {
+        const typeDef = typeDefinition
+        const offset = segmentOffset * SEGMENT_SIZE
+        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+        if (isContainerType(typeDef.beeSon.abiManager.type)) {
+          typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+            // abimanager type/obfuscationkey and else is set already on abi deserialisation
+            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+            type: typeDef.beeSon.abiManager.type,
+            version: typeDef.beeSon.abiManager.version,
+          })
+          arr.push(typeDef.beeSon.json)
+        } else {
+          typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+          arr.push(typeDef.beeSon.json)
+        }
+        segmentOffset += typeDef.segmentLength || 0
+      }
+      this.json = arr as T
+    }
   }
 
   /** Gives back data implementation's serialisation in 32 bytes segments */

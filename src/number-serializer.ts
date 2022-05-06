@@ -35,7 +35,7 @@ export function serializeFloat(value: number, type: Type): Bytes<4 | 8> {
 
 export function deserializeFloat<T extends Type.float32 | Type.float64>(
   type: T,
-  value: T extends Type.float32 ? Bytes<4> : Bytes<8>,
+  value: T extends Type.float32 ? Bytes<4> : T extends Type.float64 ? Bytes<8> : never,
 ): number {
   switch (type) {
     case Type.float32: {

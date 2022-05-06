@@ -101,3 +101,7 @@ export function assertBeeSonType(value: unknown): asserts value is Type {
     throw new Error(`Type "${value}" is not a valid BeeSon type`)
   }
 }
+
+export function isContainerType(value: unknown): value is Type.array | Type.object {
+  return value === Type.array || value === Type.object
+}

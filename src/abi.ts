@@ -220,20 +220,43 @@ export class AbiManager<T extends Type> {
     return new Bytes([...this._obfuscationKey, ...serializeVersion(this._version), this._type.charCodeAt(0)])
   }
 
-  public static deserialize<T extends Type>(data: Uint8Array, header?: Header<T> | undefined): AbiManager<T> {
+  public static deserialize<T extends Type>(
+    data: Uint8Array,
+    header?: Header<T> | undefined,
+  ): { abiManager: AbiManager<T>; processedBytes: number } {
+    let processedBytes = 0
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
       header = AbiManager.deserializeHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
       data = data.slice(64)
+      processedBytes = 64
     }
 
     if (isHeaderType(header!, Type.array)) {
-      return deserializeArrayAbi(data, header) as AbiManager<T>
+      const { abiManager, abiByteSize } = deserializeArrayAbi(data, header)
+
+      return {
+        abiManager: abiManager as AbiManager<T>,
+        processedBytes: processedBytes + abiByteSize,
+      }
     } else if (isHeaderType(header!, Type.object)) {
-      return deserializeObjectAbi(data, header) as AbiManager<T>
+      const { abiManager, abiByteSize } = deserializeObjectAbi(data, header)
+
+      return {
+        abiManager: abiManager as AbiManager<T>,
+        processedBytes: processedBytes + abiByteSize,
+      }
     }
 
-    return new AbiManager(header.obfuscationKey, header.version, header.type, null as TypeDefinitions<T>)
+    return {
+      abiManager: new AbiManager(
+        header.obfuscationKey,
+        header.version,
+        header.type,
+        null as TypeDefinitions<T>,
+      ),
+      processedBytes,
+    }
   }
 
   private static deserializeHeader(bytes: Bytes<64>): Header<Type> {
@@ -405,11 +428,14 @@ function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
 
 /**
  *
- * @param data raw beeson data (including the data elements at container types) without the blob header
+ * @param data raw beeson array ABI data without the blob header
  * @param header blob header of the beeson data
  * @returns
  */
-function deserializeArrayAbi(data: Uint8Array, header: Header<Type.array>): AbiManager<Type.array> {
+function deserializeArrayAbi(
+  data: Uint8Array,
+  header: Header<Type.array>,
+): { abiManager: AbiManager<Type.array>; abiByteSize: number } {
   let offset = 0
   const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -419,7 +445,7 @@ function deserializeArrayAbi(data: Uint8Array, header: Header<Type.array>): AbiM
   // deserialize typedefs
   const abiByteSize = abiSegmentSize * 32
   const typeDefinitions: TypeDefitionA[] = []
-  while (offset < offset + ARRAY_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
+  while (offset < ARRAY_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
     const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
     const nextOffset = offset + ARRAY_TYPE_DEF_LENGTH
@@ -428,19 +454,11 @@ function deserializeArrayAbi(data: Uint8Array, header: Header<Type.array>): AbiM
     try {
       assertBeeSonType(type)
 
-      const startDataByteIndex = abiByteSize + startSegmentIndex * 32
-      const endDataByteIndex = abiByteSize + endSegmentIndex * 32
-
+      // if deserialized type is container type, then its abi has to be deserialized in a different function call
+      const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
-        segmentLength: endDataByteIndex - startDataByteIndex,
-        beeSon: BeeSon.deserialize(
-          data.slice(abiByteSize + startDataByteIndex, abiByteSize + endDataByteIndex),
-          {
-            type,
-            obfuscationKey: header.obfuscationKey,
-            version: header.version,
-          },
-        ),
+        segmentLength: endSegmentIndex - startSegmentIndex,
+        beeSon: new BeeSon({ abiManager }),
       })
     } catch (e) {
       throw new Error(`Error at BeeSon array deserialization at offset ${offset}: ${(e as Error).message}`)
@@ -451,28 +469,32 @@ function deserializeArrayAbi(data: Uint8Array, header: Header<Type.array>): AbiM
   // last item typedef
   if (flattenTypeDefsLength > 0) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
-    const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
+    // const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
 
     try {
       assertBeeSonType(type)
 
+      // if deserialized type is container type, then its abi has to be deserialized in a different function call
+      const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
         segmentLength: Number.MAX_SAFE_INTEGER,
-        beeSon: BeeSon.deserialize(data.slice(abiByteSize + startSegmentIndex * 32), {
-          type,
-          obfuscationKey: header.obfuscationKey,
-          version: header.version,
-        }),
+        beeSon: new BeeSon({ abiManager }),
       })
     } catch (e) {
       throw new Error(`Error at BeeSon array deserialization at offset ${offset}: ${(e as Error).message}`)
     }
   }
 
-  return new AbiManager(header.obfuscationKey, header.version, Type.array, typeDefinitions)
+  return {
+    abiManager: new AbiManager(header.obfuscationKey, header.version, Type.array, typeDefinitions),
+    abiByteSize,
+  }
 }
 
-function deserializeObjectAbi(data: Uint8Array, header: Header<Type.object>): AbiManager<Type.object> {
+function deserializeObjectAbi(
+  data: Uint8Array,
+  header: Header<Type.object>,
+): { abiManager: AbiManager<Type.object>; abiByteSize: number } {
   let offset = 0
   const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -502,7 +524,7 @@ function deserializeObjectAbi(data: Uint8Array, header: Header<Type.object>): Ab
       const endDataByteIndex = abiByteSize + endSegmentIndex * 32
 
       typeDefinitions.push({
-        segmentLength: endDataByteIndex - startDataByteIndex,
+        segmentLength: endSegmentIndex - startSegmentIndex,
         beeSon: BeeSon.deserialize(
           data.slice(abiByteSize + startDataByteIndex, abiByteSize + endDataByteIndex),
           {
@@ -543,7 +565,10 @@ function deserializeObjectAbi(data: Uint8Array, header: Header<Type.object>): Ab
     }
   }
 
-  return new AbiManager(header.obfuscationKey, header.version, Type.object, typeDefinitions)
+  return {
+    abiManager: new AbiManager(header.obfuscationKey, header.version, Type.object, typeDefinitions),
+    abiByteSize,
+  }
 }
 
 function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
