@@ -1,4 +1,4 @@
-import { BeeSon, Type } from '../../src'
+import { AbiManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/address-serializer'
 
@@ -24,6 +24,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<number>({ json })
     expect(beeson.abiManager.type).toBe(Type.float64)
     expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json).toBe(json)
+    // modificiation correctness
     // test whether it accepts integer
     beeson.json = 456
     expect(() => (beeson.json = 'john coke' as unknown as number)).toThrowError()
@@ -34,6 +38,11 @@ describe('beeson', () => {
     const beeson = new BeeSon<string>({ json })
     expect(beeson.json).toBe(json)
     expect(beeson.abiManager.type).toBe(Type.string)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json).toBe(json)
+    // modificiation correctness
+    beeson.json = 'jeez'
     expect(() => (beeson.json = 42 as unknown as string)).toThrowError()
   })
 
@@ -42,6 +51,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<boolean>({ json })
     expect(beeson.abiManager.type).toBe(Type.boolean)
     expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json).toBe(json)
+    // modificiation correctness
     beeson.json = true
     expect(() => (beeson.json = 0 as unknown as boolean)).toThrowError()
     expect(() => (beeson.json = 'john coke' as unknown as boolean)).toThrowError()
@@ -53,6 +66,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<BigInt>({ json })
     expect(beeson.abiManager.type).toBe(Type.int64)
     expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json).toBe(json)
+    // modificiation correctness
     beeson.json = -2n
     expect(() => (beeson.json = 0 as unknown as BigInt)).toThrowError()
     expect(() => (beeson.json = 'john coke' as unknown as BigInt)).toThrowError()
@@ -64,6 +81,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<SwarmManifestCid>({ json })
     expect(beeson.abiManager.type).toBe(Type.swarmCac)
     expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json.toString()).toBe(json) // // by default CID string are provided as CID objects
+    // modificiation correctness
     // test whether it works with CID object as well
     beeson.json = encodeManifestReference('1dc5618313ee9b73e0d57ba9e27b6fd564bd6d9c50bdb2e8f8568153712e015d')
     expect(
@@ -77,6 +98,10 @@ describe('beeson', () => {
     const beeson = new BeeSon<SwarmFeedCid>({ json })
     expect(beeson.abiManager.type).toBe(Type.swarmSoc)
     expect(beeson.json).toBe(json)
+    // serialisation correctness
+    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    expect(beesonAgain.json.toString()).toBe(json) // by default CID string are provided as CID objects
+    // modificiation correctness
     // test whether it works with CID object as well
     beeson.json = encodeFeedReference('1dc5618313ee9b73e0d57ba9e27b6fd564bd6d9c50bdb2e8f8568153712e015d')
     expect(
@@ -90,6 +115,14 @@ describe('beeson', () => {
     const beeson = new BeeSon({ json })
     expect(beeson.abiManager.type).toBe(Type.array)
     expect(beeson.json).toStrictEqual(json)
+    // serialisation correctness
+    const bytes = beeson.abiManager.serialize()
+    const beeSonManager = AbiManager.deserialize(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const serialised = beeson.serialize()
+    const beesonAgain = BeeSon.deserialize(serialised)
+    expect(beesonAgain.json).toStrictEqual(json)
+    // modificiation correctness
     beeson.json = [3, 4, 5, 0, 0, 0]
     expect(() => (beeson.json = { name: 'john coke' } as unknown as number[])).toThrowError(
       /^Wrong value for type array. Got value has type: object./,
