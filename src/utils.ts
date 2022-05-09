@@ -170,7 +170,7 @@ export function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 export function assertObject(value: unknown): asserts value is Record<string, unknown> {
-  if (!isObject(value)) throw new AssertJsonValueError(value, 'bigint')
+  if (!isObject(value)) throw new AssertJsonValueError(value, 'object')
 }
 
 export function isUint8Array(obj: unknown): obj is Uint8Array {
@@ -190,7 +190,7 @@ export function isInteger(value: unknown): value is number {
 }
 
 export function assertInteger(value: unknown): asserts value is number {
-  if (!isInteger(value)) throw new Error(`Value is not an integer. Got: ${value}`)
+  if (!isInteger(value)) throw new AssertJsonValueError(value, 'number (integer)')
 }
 
 export function isNumber(value: unknown): value is number {
@@ -198,9 +198,7 @@ export function isNumber(value: unknown): value is number {
 }
 
 export function assertNumber(value: unknown): asserts value is number {
-  if (!isNumber(value)) {
-    throw new Error(`value is not a number. Got: ${value}`)
-  }
+  if (!isNumber(value)) throw new AssertJsonValueError(value, 'number')
 }
 
 export function assertHexString<Length extends number = number>(
