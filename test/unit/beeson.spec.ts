@@ -171,6 +171,14 @@ describe('beeson', () => {
     const beeson = new BeeSon({ json })
     expect(beeson.abiManager.type).toStrictEqual(Type.array)
     expect(beeson.json).toStrictEqual(json)
+    // serialisation correctness
+    const bytes = beeson.abiManager.serialize()
+    const beeSonManager = AbiManager.deserialize(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const serialised = beeson.serialize()
+    const beesonAgain = BeeSon.deserialize(serialised)
+    expect(beesonAgain.json).toStrictEqual(json)
+    // modificiation correctness
     json = [1, '0', true, { name: 'gipsz jakab' }, -6]
     beeson.json = json
     expect(beeson.json).toStrictEqual(json)
@@ -193,6 +201,14 @@ describe('beeson', () => {
     const beeson = new BeeSon({ json })
     expect(beeson.abiManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
+    // serialisation correctness
+    const bytes = beeson.abiManager.serialize()
+    const beeSonManager = AbiManager.deserialize(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const serialised = beeson.serialize()
+    const beesonAgain = BeeSon.deserialize(serialised)
+    expect(beesonAgain.json).toStrictEqual(json)
+    // modificiation correctness
     json = { name: 'john coke', age: 49, id: 'ID2', buddies: [{ name: 'buddha', age: 0, id: 'ID-NOPE' }] }
     beeson.json = json
     expect(beeson.json).toStrictEqual(json)
