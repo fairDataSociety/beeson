@@ -134,7 +134,7 @@ describe('beeson', () => {
       /^Given JSON array has 3 length, when the abi defines 6 length/,
     )
     expect(() => (beeson.json = [3, 4, 5, 'john', 'coke', 0] as unknown as number[])).toThrowError(
-      /^BeeSon Array assertion problem at index 3: Value is not an integer. Got: john/,
+      'BeeSon Array assertion problem at index 3: Wrong value for type number (integer). Got value has type: string. Value: john',
     )
   })
 
