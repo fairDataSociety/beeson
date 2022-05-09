@@ -538,7 +538,7 @@ function deserializeObjectAbi(
   if (flattenTypeDefsLength > 0) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
     const markerIndex = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
-    const marker = deserializeString(data.slice(startMarkerByteIndex + markerIndex))
+    const marker = deserializeString(data.slice(startMarkerByteIndex + markerIndex, abiByteSize))
 
     try {
       assertBeeSonType(type)
@@ -579,7 +579,7 @@ function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
   // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
-  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length)
+  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length)
 
   return new Uint8Array([
     ...serializeUint16(abiSegmentSize),
