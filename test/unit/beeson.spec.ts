@@ -138,6 +138,34 @@ describe('beeson', () => {
     )
   })
 
+  it('should work with 1 level object', () => {
+    let json = { name: 'john coke', age: 48, id: 'ID2' }
+    const beeson = new BeeSon({ json })
+    expect(beeson.abiManager.type).toStrictEqual(Type.object)
+    expect(beeson.json).toStrictEqual(json)
+    // serialisation correctness
+    const bytes = beeson.abiManager.serialize()
+    const beeSonManager = AbiManager.deserialize(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const serialised = beeson.serialize()
+    const beesonAgain = BeeSon.deserialize(serialised)
+    expect(beesonAgain.json).toStrictEqual(json)
+    // modificiation correctness
+    json = { name: 'john coke', age: 49, id: 'ID2' }
+    beeson.json = json
+    expect(beeson.json).toStrictEqual(json)
+    expect(
+      () =>
+        (beeson.json = {
+          name: 123 as unknown as string,
+          age: 50,
+          id: 'ID3',
+        }),
+    ).toThrowError(
+      /BeeSon Object assertion problem at index name: Wrong value for type string. Got value has type: number. Value: 123/,
+    )
+  })
+
   it('should work with polimorfic arrays', () => {
     let json = [0, '1', false, { name: 'john coke' }, 5]
     const beeson = new BeeSon({ json })
