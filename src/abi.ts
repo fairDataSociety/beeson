@@ -477,7 +477,7 @@ function deserializeArrayAbi(
       // if deserialized type is container type, then its abi has to be deserialized in a different function call
       const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
-        segmentLength: Number.MAX_SAFE_INTEGER,
+        segmentLength: null,
         beeSon: new BeeSon({ abiManager }),
       })
     } catch (e) {
