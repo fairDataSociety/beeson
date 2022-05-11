@@ -291,6 +291,9 @@ export class AbiManager<T extends Type> {
     obfuscationKey: Bytes<32>,
     version: Version,
   ): AbiManager<T> {
+    assertObfuscationKey(obfuscationKey)
+    assertVersion(version)
+
     if (isAbiObjectType(abi, Type.array)) {
       const typeDefinitions: TypeDefitionA[] = abi.children.map(child => {
         return {
@@ -627,4 +630,20 @@ function segmentSize(bytesLength: number): number {
 
 function serializeVersion(version: Version): Bytes<31> {
   return keccak256Hash(version).slice(0, 31) as Bytes<31>
+}
+
+function isObfuscationKey(value: unknown): value is Bytes<32> {
+  return value instanceof Uint8Array && value.length === 32
+}
+
+function assertObfuscationKey(value: unknown): asserts value is Bytes<32> {
+  if (!isObfuscationKey(value)) throw new Error(`Not valid obfuscation key: ${value}`)
+}
+
+function isVersion(value: unknown): value is Version {
+  return Object.values(Version).includes(value as Version)
+}
+
+function assertVersion(value: unknown): asserts value is Version {
+  if (!isVersion) throw new Error(`Not valid BeeSon version: ${value}`)
 }
