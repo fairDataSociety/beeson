@@ -13,6 +13,7 @@ import {
   assertString,
   Bytes,
   bytesToString,
+  encryptDecrypt,
   equalBytes,
   flattenBytesArray,
   isNumber,
@@ -98,15 +99,11 @@ type TypeDefinitions<T extends Type> = T extends Type.array
 
 export class AbiManager<T extends Type> {
   constructor(
-    private _obfuscationKey: Bytes<32>,
+    public obfuscationKey: Bytes<32>,
     private _version: Version,
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
   ) {}
-
-  public get obfuscationKey(): Bytes<32> {
-    return new Bytes([...this._obfuscationKey])
-  }
 
   public get version(): Version {
     return this._version
@@ -203,21 +200,25 @@ export class AbiManager<T extends Type> {
 
   /** `withoutBlobHeader` used mainly at container types */
   public serialize(withoutBlobHeader = false): Uint8Array {
-    let data = withoutBlobHeader ? new Uint8Array() : this.serializeHeader()
+    const header = withoutBlobHeader ? new Uint8Array() : this.serializeHeader()
+    let data: Uint8Array
 
     if (isAbiManagerType(this, Type.array)) {
-      data = new Uint8Array([...data, ...serializeArrayAbi(this as AbiManager<Type.array>)])
+      data = new Uint8Array([...header, ...serializeArrayAbi(this as AbiManager<Type.array>)])
     } else if (this._type === Type.object) {
-      data = new Uint8Array([...data, ...serializeObjectAbi(this as AbiManager<Type.object>)])
-    } else if (data.length === 0) {
-      return data // no padding required
+      data = new Uint8Array([...header, ...serializeObjectAbi(this as AbiManager<Type.object>)])
+    } else {
+      return header // no padding required
     }
 
     return segmentPaddingFromRight(data)
   }
 
   public serializeHeader(): Bytes<64> {
-    return new Bytes([...this._obfuscationKey, ...serializeVersion(this._version), this._type.charCodeAt(0)])
+    const data = new Uint8Array([...serializeVersion(this._version), this._type.charCodeAt(0)])
+    encryptDecrypt(this.obfuscationKey, data)
+
+    return new Bytes([...this.obfuscationKey, ...data])
   }
 
   public static deserialize<T extends Type>(
@@ -261,9 +262,11 @@ export class AbiManager<T extends Type> {
 
   private static deserializeHeader(bytes: Bytes<64>): Header<Type> {
     const obfuscationKey = bytes.slice(0, 32) as Bytes<32>
-    const versionHash = bytes.slice(32, 63)
+    const decryptedBytes = new Uint8Array(bytes.slice(32))
+    encryptDecrypt(obfuscationKey, decryptedBytes)
+    const versionHash = decryptedBytes.slice(0, 31)
     const version = Version.unpackedV0_1 // Only current version
-    const type = String.fromCharCode(bytes[63]) as Type
+    const type = String.fromCharCode(decryptedBytes[31]) as Type
 
     // version check
     if (!equalBytes(versionHash, serializeVersion(Version.unpackedV0_1))) {
@@ -419,11 +422,15 @@ function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
   // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
   const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length)
 
-  return new Uint8Array([
+  const bytes = new Uint8Array([
     ...serializeUint16(abiSegmentSize),
     ...serializeUint16(abi.typeDefinitions.length),
     ...flattenTypeDefs,
   ])
+
+  encryptDecrypt(abi.obfuscationKey, bytes)
+
+  return bytes
 }
 
 /**
@@ -436,6 +443,8 @@ function deserializeArrayAbi(
   data: Uint8Array,
   header: Header<Type.array>,
 ): { abiManager: AbiManager<Type.array>; abiByteSize: number } {
+  encryptDecrypt(header.obfuscationKey, data)
+
   let offset = 0
   const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -495,6 +504,8 @@ function deserializeObjectAbi(
   data: Uint8Array,
   header: Header<Type.object>,
 ): { abiManager: AbiManager<Type.object>; abiByteSize: number } {
+  encryptDecrypt(header.obfuscationKey, data)
+
   let offset = 0
   const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -581,12 +592,16 @@ function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
   // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
   const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length)
 
-  return new Uint8Array([
+  const bytes = new Uint8Array([
     ...serializeUint16(abiSegmentSize),
     ...serializeUint16(serializedTypeDefs.length),
     ...flattenBytesArray(serializedTypeDefs),
     ...serializedMarkers.serializedMarkers,
   ])
+
+  encryptDecrypt(abi.obfuscationKey, bytes)
+
+  return bytes
 }
 
 type SerializedMarkers = { serializedMarkerIndices: Bytes<2>[]; serializedMarkers: Uint8Array }
