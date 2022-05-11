@@ -1,6 +1,7 @@
 import { AbiManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/address-serializer'
+import { randomByteArray } from './utils'
 
 describe('beeson', () => {
   it('should work with integer type', () => {
@@ -99,8 +100,15 @@ describe('beeson', () => {
     expect(beeson.abiManager.type).toBe(Type.swarmSoc)
     expect(beeson.json).toBe(json)
     // serialisation correctness
-    const beesonAgain = BeeSon.deserialize(beeson.serialize())
+    const serialized = beeson.serialize()
+    const beesonAgain = BeeSon.deserialize(serialized)
     expect(beesonAgain.json.toString()).toBe(json) // by default CID string are provided as CID objects
+    // obfuscation key change
+    beesonAgain.abiManager.obfuscationKey = randomByteArray(32)
+    const serialized2 = beesonAgain.serialize()
+    const beesonAgain2 = BeeSon.deserialize(serialized2)
+    expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
+    expect(serialized2).not.toStrictEqual(serialized)
     // modificiation correctness
     // test whether it works with CID object as well
     beeson.json = encodeFeedReference('1dc5618313ee9b73e0d57ba9e27b6fd564bd6d9c50bdb2e8f8568153712e015d')
@@ -122,6 +130,12 @@ describe('beeson', () => {
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
+    // obfuscation key change
+    beesonAgain.abiManager.obfuscationKey = randomByteArray(32)
+    const serialised2 = beesonAgain.serialize()
+    const beesonAgain2 = BeeSon.deserialize(serialised2)
+    expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
+    expect(serialised2).not.toStrictEqual(serialised)
     // modificiation correctness
     beeson.json = [3, 4, 5, 0, 0, 0]
     expect(() => (beeson.json = { name: 'john coke' } as unknown as number[])).toThrowError(
@@ -150,6 +164,12 @@ describe('beeson', () => {
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
+    // obfuscation key change
+    beesonAgain.abiManager.obfuscationKey = randomByteArray(32)
+    const serialised2 = beesonAgain.serialize()
+    const beesonAgain2 = BeeSon.deserialize(serialised2)
+    expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
+    expect(serialised2).not.toStrictEqual(serialised)
     // modificiation correctness
     json = { name: 'john coke', age: 49, id: 'ID2' }
     beeson.json = json
@@ -178,6 +198,12 @@ describe('beeson', () => {
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
+    // obfuscation key change
+    beesonAgain.abiManager.obfuscationKey = randomByteArray(32)
+    const serialised2 = beesonAgain.serialize()
+    const beesonAgain2 = BeeSon.deserialize(serialised2)
+    expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
+    expect(serialised2).not.toStrictEqual(serialised)
     // modificiation correctness
     json = [1, '0', true, { name: 'gipsz jakab' }, -6]
     beeson.json = json
@@ -196,7 +222,7 @@ describe('beeson', () => {
     )
   })
 
-  it('should work with object', () => {
+  it('should work with complex object', () => {
     let json = { name: 'john coke', age: 48, id: 'ID2', buddies: [{ name: 'jesus', age: 33, id: 'ID1' }] }
     const beeson = new BeeSon({ json })
     expect(beeson.abiManager.type).toStrictEqual(Type.object)
@@ -208,6 +234,12 @@ describe('beeson', () => {
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
+    // obfuscation key change
+    beesonAgain.abiManager.obfuscationKey = randomByteArray(32)
+    const serialised2 = beesonAgain.serialize()
+    const beesonAgain2 = BeeSon.deserialize(serialised2)
+    expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
+    expect(serialised2).not.toStrictEqual(serialised)
     // modificiation correctness
     json = { name: 'john coke', age: 49, id: 'ID2', buddies: [{ name: 'buddha', age: 0, id: 'ID-NOPE' }] }
     beeson.json = json
