@@ -8,6 +8,7 @@ import {
   assertBoolean,
   assertInteger,
   assertJsonValue,
+  assertNull,
   assertNumber,
   assertObject,
   assertString,
@@ -16,6 +17,7 @@ import {
   encryptDecrypt,
   equalBytes,
   flattenBytesArray,
+  isNull,
   isNumber,
   isObject,
   keccak256Hash,
@@ -37,30 +39,52 @@ export enum Version {
   unpackedV0_1 = 'beeson-0.1-unpacked',
 }
 
-export interface TypeDefitionA {
+export interface TypeDefinitionA {
   /** last typedefinition segmentLength is null */
   segmentLength: number | null
   beeSon: BeeSon<JsonValue>
 }
 
+export interface TypeDefintionANullable extends TypeDefinitionA {
+  nullable: boolean
+}
+
 /** Type definition at Objects */
-export interface TypeDefitionO extends TypeDefitionA {
+export interface TypeDefinitionO extends TypeDefinitionA {
   marker: string
 }
+
+export interface TypeDefintionONullable extends TypeDefinitionO {
+  nullable: boolean
+}
+
+export interface TypeDefinitionNullable extends TypeDefintionANullable, TypeDefintionONullable {}
 
 interface ChildA {
   segmentLength: number | null
   abi: AbiObject<Type>
 }
 
+interface ChildANullable extends ChildA {
+  nullable: boolean
+}
+
 interface ChildO extends ChildA {
   marker: string
 }
 
+interface ChildONullable extends ChildO {
+  nullable: boolean
+}
+
 type AbiChildren<T extends Type> = T extends Type.array
   ? ChildA[]
+  : T extends Type.nullableArray
+  ? ChildANullable[]
   : T extends Type.object
   ? ChildO[]
+  : T extends Type.object
+  ? ChildONullable[]
   : undefined
 
 interface AbiObject<T extends Type> {
@@ -82,7 +106,11 @@ export interface Abi<T extends Type = Type> {
   version: Version
   type: T
   /** at container types */
-  typeDefinitions: T extends Type.array ? TypeDefitionA[] : T extends Type.object ? TypeDefitionO[] : unknown
+  typeDefinitions: T extends Type.array
+    ? TypeDefinitionA[]
+    : T extends Type.object
+    ? TypeDefinitionO[]
+    : unknown
 }
 
 export interface Header<T extends Type> {
@@ -92,10 +120,26 @@ export interface Header<T extends Type> {
 }
 
 type TypeDefinitions<T extends Type> = T extends Type.array
-  ? TypeDefitionA[]
+  ? TypeDefinitionA[]
+  : T extends Type.nullableArray
+  ? TypeDefintionANullable[]
   : T extends Type.object
-  ? TypeDefitionO[]
+  ? TypeDefinitionO[]
+  : T extends Type.nullableObject
+  ? TypeDefintionONullable[]
   : null
+
+function isTypeDefintionsNullableArray<T extends Type>(
+  value: Array<unknown>,
+): value is TypeDefinitionNullable[] {
+  return typeof value[0] === 'object' && value[0] !== null && (value[0] as any).nullable !== undefined
+}
+
+type NullableContainerAbiManager<T extends Type> = T extends Type.array
+  ? AbiManager<Type.nullableArray>
+  : T extends Type.object
+  ? AbiManager<Type.nullableObject>
+  : never
 
 export class AbiManager<T extends Type> {
   constructor(
@@ -103,6 +147,8 @@ export class AbiManager<T extends Type> {
     private _version: Version,
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
+    /** if the JSONValue is nullable according to its parent container's field defintion */
+    private readonly _nullable = false,
   ) {}
 
   public get version(): Version {
@@ -121,51 +167,71 @@ export class AbiManager<T extends Type> {
    * Asserts whether the given JsonValue satisfies its corresponding ABI
    * Container typed values have shallow assertion as their elements will have own BeeSon object anyway.
    */
-  public assertJsonValue(value: unknown): void {
+  // eslint-disable-next-line complexity
+  public assertJsonValue(value: unknown): asserts value is JsonValue {
+    if (this._nullable && isNull(value)) return
     if (isAbiManagerType(this, Type.swarmCac)) {
-      assertSwarmManifestCid(value)
-    } else if (isAbiManagerType(this, Type.swarmSoc)) {
-      assertSwarmFeedCid(value)
-    } else if (isAbiManagerType(this, Type.float32) || isAbiManagerType(this, Type.float64)) {
-      assertNumber(value)
-    } else if (
+      return assertSwarmManifestCid(value)
+    }
+    if (isAbiManagerType(this, Type.swarmSoc)) {
+      return assertSwarmFeedCid(value)
+    }
+    if (isAbiManagerType(this, Type.float32) || isAbiManagerType(this, Type.float64)) {
+      return assertNumber(value)
+    }
+    if (
       isAbiManagerType(this, Type.uint8) ||
       isAbiManagerType(this, Type.int8) ||
       isAbiManagerType(this, Type.int16) ||
       isAbiManagerType(this, Type.int32)
     ) {
-      assertInteger(value)
-    } else if (isAbiManagerType(this, Type.int64)) {
-      assertBigInt(value)
-    } else if (isAbiManagerType(this, Type.string)) {
-      assertString(value)
-    } else if (isAbiManagerType(this, Type.array)) {
+      return assertInteger(value)
+    }
+    if (isAbiManagerType(this, Type.int64)) {
+      return assertBigInt(value)
+    }
+    if (isAbiManagerType(this, Type.string)) {
+      return assertString(value)
+    }
+    if (isAbiManagerType(this, Type.array) || isAbiManagerType(this, Type.nullableArray)) {
       assertArray(value)
-      if (value.length !== this._typeDefinitions.length) {
+      const typeDefs = this.typeDefinitions as TypeDefinitionA[]
+      if (value.length !== typeDefs.length) {
         throw new Error(
-          `Given JSON array has ${value.length} length, when the abi defines ${this._typeDefinitions.length} length`,
+          `Given JSON array has ${value.length} length, when the abi defines ${typeDefs.length} length`,
         )
       }
-    } else if (isAbiManagerType(this, Type.object)) {
+
+      return
+    }
+    if (isAbiManagerType(this, Type.object) || isAbiManagerType(this, Type.nullableObject)) {
       assertObject(value)
       const objectKeys = Object.keys(value)
-      if (objectKeys.length !== this._typeDefinitions.length) {
-        const typeDefKeys = this._typeDefinitions.map(def => def.marker)
+      const typeDefs = this.typeDefinitions as TypeDefinitionO[]
+      if (objectKeys.length !== typeDefs.length) {
+        const typeDefKeys = typeDefs.map(def => def.marker)
         throw new Error(
           `Given JSON object has ${objectKeys.length} key length, when the abi defines ${
-            this._typeDefinitions.length
+            typeDefs.length
           } length.\n\tMissing keys: ${objectKeys.map(k => !typeDefKeys.includes(k))}`,
         )
       }
-      for (const typeDefinition of this._typeDefinitions) {
-        const typeDef = typeDefinition as TypeDefitionO // TODO create typescript issue about it
-        if (!objectKeys.includes(typeDef.marker)) {
-          throw new Error(`Given JSON object does not have key: ${typeDef.marker}`)
+      for (const typeDefinition of typeDefs) {
+        if (!objectKeys.includes(typeDefinition.marker)) {
+          throw new Error(`Given JSON object does not have key: ${typeDefinition.marker}`)
         }
       }
-    } else if (isAbiManagerType(this, Type.boolean)) {
-      assertBoolean(value)
+
+      return
     }
+    if (isAbiManagerType(this, Type.boolean)) {
+      return assertBoolean(value)
+    }
+    if (isAbiManagerType(this, Type.null)) {
+      return assertNull(value)
+    }
+
+    throw new Error(`ABI assertion problem at value "${value}". There is no corresponding check`)
   }
 
   public getAbiObject(): AbiObject<T> {
@@ -295,7 +361,7 @@ export class AbiManager<T extends Type> {
     assertVersion(version)
 
     if (isAbiObjectType(abi, Type.array)) {
-      const typeDefinitions: TypeDefitionA[] = abi.children.map(child => {
+      const typeDefinitions: TypeDefinitionA[] = abi.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
@@ -307,7 +373,7 @@ export class AbiManager<T extends Type> {
 
       return new AbiManager(obfuscationKey, version, Type.array, typeDefinitions) as AbiManager<T>
     } else if (isAbiObjectType(abi, Type.object)) {
-      const typeDefinitions: TypeDefitionO[] = abi.children.map(child => {
+      const typeDefinitions: TypeDefinitionO[] = abi.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
@@ -323,6 +389,72 @@ export class AbiManager<T extends Type> {
 
     return new AbiManager(obfuscationKey, version, abi.type, null as TypeDefinitions<T>)
   }
+
+  // mutate methods
+
+  /**
+   * Set container object element nullable or disallow to be that
+   * @throws if the stored json value of the element has conflict with the nullable abi parameter
+   * | (e.g.) ABI was nullable before and the json value null, and user changes nullable to false
+   */
+  public setTypeDefinitionNullable(typeDefIndex: number, nullable: boolean) {
+    if (!this._typeDefinitions) throw new Error(`ABI does not handle a container type`)
+    if (!isAbiManagerType(this, Type.nullableArray) && !isAbiManagerType(this, Type.nullableObject)) {
+      throw new Error(`ABI does not handle nullable container here`)
+    }
+    if (!this.typeDefinitions[typeDefIndex]) {
+      throw new Error(`there is no typedefintion on index ${typeDefIndex}`)
+    }
+    const oldBeeSon = this.typeDefinitions[typeDefIndex].beeSon
+    const oldAbiManager = oldBeeSon.abiManager
+    const newAbiManager = new AbiManager(
+      oldAbiManager.obfuscationKey,
+      oldAbiManager.version,
+      oldAbiManager.type,
+      oldAbiManager.typeDefinitions,
+      nullable,
+    )
+    const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+    newBeeSon.json = oldBeeSon.json
+    //overwrite new beeson object for element
+    this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
+  }
+
+  public getNullableContainerAbiManager(): NullableContainerAbiManager<T> {
+    if (isAbiManagerType(this, Type.array)) {
+      const newTypeDefs: TypeDefintionANullable[] = this.typeDefinitions.map(typeDef => {
+        return {
+          ...typeDef,
+          nullable: true,
+        }
+      })
+      //
+
+      return new AbiManager(
+        this.obfuscationKey,
+        this.version,
+        Type.nullableArray,
+        newTypeDefs,
+      ) as NullableContainerAbiManager<T>
+    }
+    if (isAbiManagerType(this, Type.object)) {
+      const newTypeDefs: TypeDefintionONullable[] = this.typeDefinitions.map(typeDef => {
+        return {
+          ...typeDef,
+          nullable: true,
+        }
+      })
+
+      return new AbiManager(
+        this.obfuscationKey,
+        this.version,
+        Type.nullableObject,
+        newTypeDefs,
+      ) as NullableContainerAbiManager<T>
+    }
+
+    throw new Error(`This ABI does not represent a nullable container value`)
+  }
 }
 
 export function generateAbi<T extends JsonValue>(
@@ -335,7 +467,7 @@ export function generateAbi<T extends JsonValue>(
 
   if (type === Type.array) {
     const jsonArray = json as Array<unknown>
-    const typeDefinitions: TypeDefitionA[] = []
+    const typeDefinitions: TypeDefinitionA[] = []
 
     for (const value of jsonArray) {
       assertJsonValue(value)
@@ -348,7 +480,7 @@ export function generateAbi<T extends JsonValue>(
   } else if (type === Type.object) {
     const jsonObject = json as Record<string, unknown>
     const markerArray: string[] = Object.keys(jsonObject).sort()
-    const typeDefinitions: TypeDefitionO[] = []
+    const typeDefinitions: TypeDefinitionO[] = []
 
     for (const marker of markerArray) {
       const value = jsonObject[marker]
@@ -375,6 +507,7 @@ function isHeaderType<T extends Type>(header: Header<Type>, type: T): header is 
   return header.type === type
 }
 
+/** does not set nullable types by default. */
 function identifyType<T extends JsonValue>(json: T): ValueType<T> {
   let type: Type | undefined
   // Misc types
@@ -456,7 +589,7 @@ function deserializeArrayAbi(
 
   // deserialize typedefs
   const abiByteSize = abiSegmentSize * 32
-  const typeDefinitions: TypeDefitionA[] = []
+  const typeDefinitions: TypeDefinitionA[] = []
   while (offset < ARRAY_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
     const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
@@ -518,7 +651,7 @@ function deserializeObjectAbi(
   // deserialize typedefs
   const abiByteSize = abiSegmentSize * 32
   const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
-  const typeDefinitions: TypeDefitionO[] = []
+  const typeDefinitions: TypeDefinitionO[] = []
   while (offset < OBJECT_TYPE_DEF_LENGTH * (flattenTypeDefsLength - 1)) {
     const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
     const startSegmentIndex = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)

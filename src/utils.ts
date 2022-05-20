@@ -1,4 +1,4 @@
-import { JsonValue } from './types'
+import { JsonMap, JsonValue } from './types'
 import { keccak256, Message } from 'js-sha3'
 import { isSwarmCid } from './address-serializer'
 
@@ -165,11 +165,11 @@ export function bytesToString(value: Uint8Array): string {
 
 /// used-defined type guards and assert functions
 
-export function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is JsonMap<unknown> {
   return value !== null && typeof value === 'object'
 }
 
-export function assertObject(value: unknown): asserts value is Record<string, unknown> {
+export function assertObject(value: unknown): asserts value is JsonMap<unknown> {
   if (!isObject(value)) throw new AssertJsonValueError(value, 'object')
 }
 
@@ -247,6 +247,14 @@ export function isBoolean(value: unknown): value is boolean {
 
 export function assertBoolean(value: unknown): asserts value is boolean {
   if (!isBoolean(value)) throw new AssertJsonValueError(value, 'boolean')
+}
+
+export function isNull(value: unknown): value is null {
+  return value === null
+}
+
+export function assertNull(value: unknown): asserts value is null {
+  if (!isNull(value)) throw new AssertJsonValueError(value, 'null')
 }
 
 export function isString(value: unknown): value is string {

@@ -1,5 +1,13 @@
 /* eslint-disable complexity */
-import { AbiManager, generateAbi, Header, isAbiManagerType, TypeDefitionO } from './abi'
+import {
+  AbiManager,
+  generateAbi,
+  Header,
+  isAbiManagerType,
+  TypeDefinitionO,
+  TypeDefintionANullable,
+  TypeDefintionONullable,
+} from './abi'
 import {
   deserializeSwarmCac,
   deserializeSwarmSoc,
@@ -11,12 +19,22 @@ import {
 import { deserializeBoolean, serializeBoolean } from './boolean-serializer'
 import { deserializeFloat, deserializeInt, serializeFloat, serliazeInt } from './number-serializer'
 import { deserializeString, serializeString } from './string-seralizer'
-import { isContainerType, JsonValue, NotSupportedTypeError, Type, TypeValue, ValueType } from './types'
+import {
+  isContainerType,
+  JsonMap,
+  JsonValue,
+  NotSupportedTypeError,
+  Nullable,
+  Type,
+  TypeValue,
+  ValueType,
+} from './types'
 import {
   assertJsonValue,
   Bytes,
   encryptDecrypt,
   flattenBytesArray,
+  isNull,
   segmentPaddingFromLeft,
   segmentPaddingFromRight,
   SEGMENT_SIZE,
@@ -48,6 +66,12 @@ class JsonValueUndefinedError extends Error {
     super('There is no JSON value set')
   }
 }
+
+type NullableContainerBeeSon<T extends JsonValue> = T extends JsonMap<unknown>
+  ? BeeSon<Nullable<T>>
+  : T extends Type.object
+  ? BeeSon<Nullable<T>>
+  : never
 
 export class BeeSon<T extends JsonValue> {
   private _abiManager: AbiManager<ValueType<T>>
@@ -86,24 +110,28 @@ export class BeeSon<T extends JsonValue> {
   public set json(value: T) {
     this._abiManager.assertJsonValue(value)
 
-    if (isAbiManagerType(this._abiManager, Type.array)) {
+    if (
+      isAbiManagerType(this._abiManager, Type.array) ||
+      isAbiManagerType(this._abiManager, Type.nullableArray)
+    ) {
       for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
         try {
           const arrayItem = (value as Array<unknown>)[index]
-          assertJsonValue(arrayItem)
-          typeDefition.beeSon.json = arrayItem
+          typeDefition.beeSon.json = arrayItem as JsonValue
         } catch (e) {
           throw new Error(`BeeSon Array assertion problem at index ${index}: ${(e as Error).message}`)
         }
       }
-    } else if (isAbiManagerType(this._abiManager, Type.object)) {
+    } else if (
+      isAbiManagerType(this._abiManager, Type.object) ||
+      isAbiManagerType(this._abiManager, Type.nullableObject)
+    ) {
       for (const typeDefinition of this._abiManager.typeDefinitions) {
-        const def = typeDefinition as TypeDefitionO // TODO create bug report in typescript
+        const def = typeDefinition as TypeDefinitionO // TODO create bug report in typescript
         const marker = def.marker
         try {
           const arrayItem = (value as Record<string, unknown>)[marker]
-          assertJsonValue(arrayItem)
-          def.beeSon.json = arrayItem
+          def.beeSon.json = arrayItem as JsonValue
         } catch (e) {
           throw new Error(`BeeSon Object assertion problem at index ${marker}: ${(e as Error).message}`)
         }
@@ -187,7 +215,7 @@ export class BeeSon<T extends JsonValue> {
       const obj: Record<string, unknown> = {}
       let segmentOffset = 0
       for (const typeDefinition of this._abiManager.typeDefinitions) {
-        const typeDef = typeDefinition as TypeDefitionO
+        const typeDef = typeDefinition as TypeDefinitionO
         const key = typeDef.marker
         const offset = segmentOffset * SEGMENT_SIZE
         const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
@@ -321,5 +349,58 @@ export class BeeSon<T extends JsonValue> {
     }
 
     throw new NotSupportedTypeError(this.abiManager.type)
+  }
+
+  public setIndexNullable(index: keyof T, nullable: boolean) {
+    if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
+      for (const [typeDefIndex, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+        const typeDef = typeDefinition as TypeDefintionONullable
+        if (typeDef.marker === index) {
+          return this._abiManager.setTypeDefinitionNullable(typeDefIndex, nullable)
+        }
+      }
+
+      throw new Error(`Index "${index} has been not found"`)
+    } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
+      return this._abiManager.setTypeDefinitionNullable(index as number, nullable)
+    }
+    throw new Error(`BeeSon object is not a nullable container type. It has type: ${this._abiManager.type}`)
+  }
+
+  private tryToSetArray(value: Array<unknown>) {
+    if (isAbiManagerType(this._abiManager, Type.array)) {
+      for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
+        try {
+          const arrayItem = value[index]
+          assertJsonValue(arrayItem)
+          typeDefition.beeSon.json = arrayItem
+        } catch (e) {
+          throw new Error(`BeeSon Array assertion problem at index ${index}: ${(e as Error).message}`)
+        }
+      }
+    } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
+      for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
+        const typeDef = typeDefition as TypeDefintionANullable // typescript bug
+        try {
+          const arrayItem = value[index]
+          // only allow null value if the container's typedefinition allows that
+          if (isNull(arrayItem) && !typeDef.nullable) {
+            throw new Error('Array item cannot be null, because the property is not optional.')
+          }
+
+          typeDefition.beeSon.json = arrayItem as JsonValue
+        } catch (e) {
+          throw new Error(`BeeSon Array assertion problem at index ${index}: ${(e as Error).message}`)
+        }
+      }
+    }
+  }
+
+  public getNullableContainer(): NullableContainerBeeSon<T> {
+    const abiManager = this._abiManager.getNullableContainerAbiManager()
+    const newBeeSon = new BeeSon({ abiManager })
+    newBeeSon.json = this.json
+
+    return newBeeSon as NullableContainerBeeSon<T>
   }
 }

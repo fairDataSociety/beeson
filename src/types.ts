@@ -1,5 +1,9 @@
 import { SwarmFeedCid, SwarmManifestCid } from './address-serializer'
 
+export type JsonMap<T> = {
+  [K in keyof T]: JsonValue
+}
+
 export enum Type {
   // string types
   string = 'S',
@@ -13,16 +17,26 @@ export enum Type {
   float64 = 'D',
   // misc types
   boolean = 'b',
+  null = 'n',
   swarmCac = 'c',
   swarmSoc = 's',
   // container types
-  object = 'o',
-  array = 'a',
+  object = 'O',
+  nullableObject = 'o',
+  array = 'A',
+  nullableArray = 'a',
 }
 
 export type ContainerTypes = Type.array | Type.object
 
-export type TypeValue<T extends Type> = T extends Type.array
+export type NullableContainerTypes = Type.nullableArray | Type.nullableObject
+export type NullableContainerType<T extends Type.array | Type.object> = T extends Type.array
+  ? Type.nullableArray
+  : T extends Type.object
+  ? Type.nullableObject
+  : never
+
+export type TypeValue<T extends Type> = T extends Type.array | Type.nullableArray
   ? Array<unknown>
   : T extends Type.boolean
   ? boolean
@@ -30,61 +44,52 @@ export type TypeValue<T extends Type> = T extends Type.array
   ? number
   : T extends Type.int64
   ? BigInt
-  : T extends Type.object
-  ? Record<string, unknown>
+  : T extends Type.object | Type.nullableObject
+  ? JsonMap<unknown>
   : T extends Type.string
   ? string
   : T extends Type.swarmCac
   ? SwarmManifestCid
   : T extends Type.swarmSoc
   ? SwarmFeedCid
+  : T extends Type.null
+  ? null
   : never
 
 export type JsonValue =
   | boolean
   | number
-  | Record<string, unknown>
+  | JsonMap<unknown>
   | string
   | SwarmManifestCid
   | SwarmFeedCid
   | unknown[]
   | BigInt
-
-export type TypeofJsonValue<T extends JsonValue> = T extends boolean
-  ? boolean
-  : T extends number
-  ? number
-  : T extends Record<string, unknown>
-  ? Record<string, unknown>
-  : T extends string
-  ? string
-  : T extends SwarmManifestCid
-  ? SwarmManifestCid
-  : T extends SwarmFeedCid
-  ? SwarmFeedCid
-  : T extends unknown[]
-  ? unknown[]
-  : T extends BigInt
-  ? BigInt
-  : never
+  | null
 
 export type ValueType<T extends JsonValue> = T extends Array<unknown>
-  ? Type.array
+  ? Type.array | Type.nullableArray
   : T extends boolean
   ? Type.boolean
   : T extends number
   ? Type.float32 | Type.float64 | Type.int8 | Type.uint8 | Type.int16 | Type.int32
   : T extends BigInt
   ? Type.int64
-  : T extends Record<string, unknown>
-  ? Type.object
   : T extends string
   ? Type.string
   : T extends SwarmManifestCid
   ? Type.swarmCac
   : T extends SwarmFeedCid
   ? Type.swarmSoc
+  : T extends null
+  ? Type.null
+  : T extends JsonMap<T>
+  ? Type.object | Type.nullableObject
   : never
+
+export type Nullable<T> = {
+  [P in keyof T]: T[P] | null
+}
 
 export class NotSupportedTypeError extends Error {
   constructor(expectedType: string) {
