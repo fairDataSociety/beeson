@@ -45,20 +45,10 @@ export interface TypeDefinitionA {
   beeSon: BeeSon<JsonValue>
 }
 
-export interface TypeDefintionANullable extends TypeDefinitionA {
-  nullable: boolean
-}
-
 /** Type definition at Objects */
 export interface TypeDefinitionO extends TypeDefinitionA {
   marker: string
 }
-
-export interface TypeDefintionONullable extends TypeDefinitionO {
-  nullable: boolean
-}
-
-export interface TypeDefinitionNullable extends TypeDefintionANullable, TypeDefintionONullable {}
 
 interface ChildA {
   segmentLength: number | null
@@ -119,21 +109,11 @@ export interface Header<T extends Type> {
   type: T
 }
 
-type TypeDefinitions<T extends Type> = T extends Type.array
+type TypeDefinitions<T extends Type> = T extends Type.array | Type.nullableArray
   ? TypeDefinitionA[]
-  : T extends Type.nullableArray
-  ? TypeDefintionANullable[]
-  : T extends Type.object
+  : T extends Type.object | Type.nullableObject
   ? TypeDefinitionO[]
-  : T extends Type.nullableObject
-  ? TypeDefintionONullable[]
   : null
-
-function isTypeDefintionsNullableArray<T extends Type>(
-  value: Array<unknown>,
-): value is TypeDefinitionNullable[] {
-  return typeof value[0] === 'object' && value[0] !== null && (value[0] as any).nullable !== undefined
-}
 
 type NullableContainerAbiManager<T extends Type> = T extends Type.array
   ? AbiManager<Type.nullableArray>
@@ -148,7 +128,7 @@ export class AbiManager<T extends Type> {
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
     /** if the JSONValue is nullable according to its parent container's field defintion */
-    private readonly _nullable = false,
+    public readonly nullable = false,
   ) {}
 
   public get version(): Version {
@@ -169,7 +149,7 @@ export class AbiManager<T extends Type> {
    */
   // eslint-disable-next-line complexity
   public assertJsonValue(value: unknown): asserts value is JsonValue {
-    if (this._nullable && isNull(value)) return
+    if (this.nullable && isNull(value)) return
     if (isAbiManagerType(this, Type.swarmCac)) {
       return assertSwarmManifestCid(value)
     }
@@ -407,11 +387,14 @@ export class AbiManager<T extends Type> {
     }
     const oldBeeSon = this.typeDefinitions[typeDefIndex].beeSon
     const oldAbiManager = oldBeeSon.abiManager
+    const oldTypeDefs = Array.isArray(oldAbiManager.typeDefinitions)
+      ? [...oldAbiManager.typeDefinitions]
+      : oldAbiManager.typeDefinitions
     const newAbiManager = new AbiManager(
       oldAbiManager.obfuscationKey,
       oldAbiManager.version,
       oldAbiManager.type,
-      oldAbiManager.typeDefinitions,
+      oldTypeDefs,
       nullable,
     )
     const newBeeSon = new BeeSon({ abiManager: newAbiManager })
@@ -422,34 +405,57 @@ export class AbiManager<T extends Type> {
 
   public getNullableContainerAbiManager(): NullableContainerAbiManager<T> {
     if (isAbiManagerType(this, Type.array)) {
-      const newTypeDefs: TypeDefintionANullable[] = this.typeDefinitions.map(typeDef => {
-        return {
-          ...typeDef,
-          nullable: true,
+      const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
+        const oldBeeSon = oldTypeDef.beeSon
+        const oldAbiManager = oldBeeSon.abiManager
+        const newAbiManager = new AbiManager(
+          oldAbiManager.obfuscationKey,
+          oldAbiManager.version,
+          oldAbiManager.type,
+          oldAbiManager.typeDefinitions,
+          true,
+        )
+        const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+        const newTypeDef: TypeDefinitionA = {
+          segmentLength: oldTypeDef.segmentLength,
+          beeSon: newBeeSon,
         }
+
+        return newTypeDef
       })
-      //
 
       return new AbiManager(
         this.obfuscationKey,
         this.version,
         Type.nullableArray,
-        newTypeDefs,
+        typeDefinitions,
       ) as NullableContainerAbiManager<T>
     }
     if (isAbiManagerType(this, Type.object)) {
-      const newTypeDefs: TypeDefintionONullable[] = this.typeDefinitions.map(typeDef => {
-        return {
-          ...typeDef,
-          nullable: true,
+      const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
+        const oldBeeSon = oldTypeDef.beeSon
+        const oldAbiManager = oldBeeSon.abiManager
+        const newAbiManager = new AbiManager(
+          oldAbiManager.obfuscationKey,
+          oldAbiManager.version,
+          oldAbiManager.type,
+          oldAbiManager.typeDefinitions,
+          true,
+        )
+        const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+        const newTypeDef: TypeDefinitionO = {
+          ...oldTypeDef,
+          beeSon: newBeeSon,
         }
+
+        return newTypeDef
       })
 
       return new AbiManager(
         this.obfuscationKey,
         this.version,
         Type.nullableObject,
-        newTypeDefs,
+        typeDefinitions,
       ) as NullableContainerAbiManager<T>
     }
 

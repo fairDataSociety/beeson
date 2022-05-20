@@ -1,13 +1,5 @@
 /* eslint-disable complexity */
-import {
-  AbiManager,
-  generateAbi,
-  Header,
-  isAbiManagerType,
-  TypeDefinitionO,
-  TypeDefintionANullable,
-  TypeDefintionONullable,
-} from './abi'
+import { AbiManager, generateAbi, Header, isAbiManagerType, TypeDefinitionO } from './abi'
 import {
   deserializeSwarmCac,
   deserializeSwarmSoc,
@@ -34,7 +26,6 @@ import {
   Bytes,
   encryptDecrypt,
   flattenBytesArray,
-  isNull,
   segmentPaddingFromLeft,
   segmentPaddingFromRight,
   SEGMENT_SIZE,
@@ -354,7 +345,7 @@ export class BeeSon<T extends JsonValue> {
   public setIndexNullable(index: keyof T, nullable: boolean) {
     if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
       for (const [typeDefIndex, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
-        const typeDef = typeDefinition as TypeDefintionONullable
+        const typeDef = typeDefinition as TypeDefinitionO
         if (typeDef.marker === index) {
           return this._abiManager.setTypeDefinitionNullable(typeDefIndex, nullable)
         }
@@ -380,13 +371,8 @@ export class BeeSon<T extends JsonValue> {
       }
     } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
       for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
-        const typeDef = typeDefition as TypeDefintionANullable // typescript bug
         try {
           const arrayItem = value[index]
-          // only allow null value if the container's typedefinition allows that
-          if (isNull(arrayItem) && !typeDef.nullable) {
-            throw new Error('Array item cannot be null, because the property is not optional.')
-          }
 
           typeDefition.beeSon.json = arrayItem as JsonValue
         } catch (e) {
