@@ -295,3 +295,7 @@ export class AssertJsonValueError extends Error {
     super(`Wrong value for type ${expectedType}. Got value has type: ${typeof value}. Value: ${value}`)
   }
 }
+
+export function clearUndefinedObjValues(obj: Record<string | number | symbol, unknown>) {
+  Object.keys(obj).forEach(key => obj[key] === undefined && delete obj[key])
+}

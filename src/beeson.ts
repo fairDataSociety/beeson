@@ -26,6 +26,7 @@ import {
   Bytes,
   encryptDecrypt,
   flattenBytesArray,
+  isNull,
   segmentPaddingFromLeft,
   segmentPaddingFromRight,
   SEGMENT_SIZE,
@@ -101,6 +102,11 @@ export class BeeSon<T extends JsonValue> {
   public set json(value: T) {
     this._abiManager.assertJsonValue(value)
 
+    if (this._abiManager.nullable && isNull(value)) {
+      this._json = value
+
+      return
+    }
     if (
       isAbiManagerType(this._abiManager, Type.array) ||
       isAbiManagerType(this._abiManager, Type.nullableArray)

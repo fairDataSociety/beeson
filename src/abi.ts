@@ -73,7 +73,7 @@ type AbiChildren<T extends Type> = T extends Type.array
   ? ChildANullable[]
   : T extends Type.object
   ? ChildO[]
-  : T extends Type.object
+  : T extends Type.nullableObject
   ? ChildONullable[]
   : undefined
 
@@ -193,7 +193,7 @@ export class AbiManager<T extends Type> {
         throw new Error(
           `Given JSON object has ${objectKeys.length} key length, when the abi defines ${
             typeDefs.length
-          } length.\n\tMissing keys: ${objectKeys.map(k => !typeDefKeys.includes(k))}`,
+          } length.\n\tMissing keys: ${typeDefKeys.filter(k => !objectKeys.includes(k))}`,
         )
       }
       for (const typeDefinition of typeDefs) {
@@ -222,6 +222,29 @@ export class AbiManager<T extends Type> {
           return {
             segmentLength: typeDef.segmentLength,
             abi: typeDef.beeSon.abiManager.getAbiObject(),
+          }
+        }) as AbiChildren<T>,
+      }
+    } else if (isAbiManagerType(this, Type.nullableArray)) {
+      return {
+        type: this._type,
+        children: this._typeDefinitions.map(typeDef => {
+          return {
+            segmentLength: typeDef.segmentLength,
+            abi: typeDef.beeSon.abiManager.getAbiObject(),
+            nullable: typeDef.beeSon.abiManager.nullable,
+          }
+        }) as AbiChildren<T>,
+      }
+    } else if (isAbiManagerType(this, Type.nullableObject)) {
+      return {
+        type: this._type,
+        children: this._typeDefinitions.map(typeDef => {
+          return {
+            segmentLength: typeDef.segmentLength,
+            abi: typeDef.beeSon.abiManager.getAbiObject(),
+            nullable: typeDef.beeSon.abiManager.nullable,
+            marker: typeDef.marker,
           }
         }) as AbiChildren<T>,
       }
@@ -335,7 +358,8 @@ export class AbiManager<T extends Type> {
   public static loadAbiObject<T extends Type>(
     abi: AbiObject<T>,
     obfuscationKey: Bytes<32>,
-    version: Version,
+    version = Version.unpackedV0_1,
+    nullable = false,
   ): AbiManager<T> {
     assertObfuscationKey(obfuscationKey)
     assertVersion(version)
@@ -351,7 +375,30 @@ export class AbiManager<T extends Type> {
         }
       })
 
-      return new AbiManager(obfuscationKey, version, Type.array, typeDefinitions) as AbiManager<T>
+      return new AbiManager(obfuscationKey, version, Type.array, typeDefinitions, nullable) as AbiManager<T>
+    } else if (isAbiObjectType(abi, Type.nullableArray)) {
+      const typeDefinitions: TypeDefinitionA[] = abi.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            abiManager: AbiManager.loadAbiObject(
+              child.abi,
+              obfuscationKey,
+              version,
+              child.nullable,
+            ) as AbiManager<any>,
+            obfuscationKey,
+          }),
+        }
+      })
+
+      return new AbiManager(
+        obfuscationKey,
+        version,
+        Type.nullableArray,
+        typeDefinitions,
+        nullable,
+      ) as AbiManager<T>
     } else if (isAbiObjectType(abi, Type.object)) {
       const typeDefinitions: TypeDefinitionO[] = abi.children.map(child => {
         return {
@@ -364,10 +411,34 @@ export class AbiManager<T extends Type> {
         }
       })
 
-      return new AbiManager(obfuscationKey, version, Type.array, typeDefinitions) as AbiManager<T>
+      return new AbiManager(obfuscationKey, version, Type.object, typeDefinitions, nullable) as AbiManager<T>
+    } else if (isAbiObjectType(abi, Type.nullableObject)) {
+      const typeDefinitions: TypeDefinitionO[] = abi.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            abiManager: AbiManager.loadAbiObject(
+              child.abi,
+              obfuscationKey,
+              version,
+              child.nullable,
+            ) as AbiManager<any>,
+            obfuscationKey,
+          }),
+          marker: child.marker,
+        }
+      })
+
+      return new AbiManager(
+        obfuscationKey,
+        version,
+        Type.nullableObject,
+        typeDefinitions,
+        nullable,
+      ) as AbiManager<T>
     }
 
-    return new AbiManager(obfuscationKey, version, abi.type, null as TypeDefinitions<T>)
+    return new AbiManager(obfuscationKey, version, abi.type, null as TypeDefinitions<T>, nullable)
   }
 
   // mutate methods
