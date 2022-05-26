@@ -30,6 +30,7 @@ import {
   isSwarmFeedCid,
   isSwarmManifestCid,
 } from './address-serializer'
+import { BitVector } from './bitvector'
 
 export const HEADER_BYTE_LENGTH = 64
 const ARRAY_TYPE_DEF_LENGTH = 5
@@ -270,17 +271,23 @@ export class AbiManager<T extends Type> {
   /** `withoutBlobHeader` used mainly at container types */
   public serialize(withoutBlobHeader = false): Uint8Array {
     const header = withoutBlobHeader ? new Uint8Array() : this.serializeHeader()
-    let data: Uint8Array
+    let abi: Uint8Array
 
     if (isAbiManagerType(this, Type.array)) {
-      data = new Uint8Array([...header, ...serializeArrayAbi(this as AbiManager<Type.array>)])
+      abi = serializeArrayAbi(this as AbiManager<Type.array>)
     } else if (this._type === Type.object) {
-      data = new Uint8Array([...header, ...serializeObjectAbi(this as AbiManager<Type.object>)])
+      abi = serializeObjectAbi(this as AbiManager<Type.object>)
+    } else if (this._type === Type.nullableArray) {
+      abi = serializeNullableObjectAbi(this as AbiManager<Type.nullableObject>)
+    } else if (this._type === Type.nullableObject) {
+      abi = serializeNullableArrayAbi(this as AbiManager<Type.nullableArray>)
     } else {
       return header // no padding required
     }
+    abi = segmentPaddingFromRight(abi)
+    encryptDecrypt(this.obfuscationKey, abi)
 
-    return segmentPaddingFromRight(data)
+    return new Uint8Array([...header, ...abi])
   }
 
   public serializeHeader(): Bytes<64> {
@@ -641,7 +648,72 @@ function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
     ...flattenTypeDefs,
   ])
 
-  encryptDecrypt(abi.obfuscationKey, bytes)
+  return bytes
+}
+
+function serializeNullableArrayAbi(abi: AbiManager<Type.nullableArray>): Uint8Array {
+  const serializedTypeDefs: Bytes<5>[] = []
+  const bv = new BitVector(abi.typeDefinitions.length)
+  let startSegmentIndex = 0
+  for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
+    serializedTypeDefs.push(
+      new Bytes([typeDefinition.beeSon.abiManager.type.charCodeAt(0), ...serializeUint32(startSegmentIndex)]),
+    )
+    if (typeDefinition.beeSon.abiManager.nullable) {
+      bv.setBit(index)
+    }
+    startSegmentIndex += typeDefinition.segmentLength!
+  }
+  const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
+  const bitVectorSegments = segmentPaddingFromRight(bv.bitVector)
+
+  // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
+  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length + bitVectorSegments.length)
+
+  const bytes = new Uint8Array([
+    ...serializeUint16(abiSegmentSize),
+    ...serializeUint16(abi.typeDefinitions.length),
+    ...flattenTypeDefs,
+    ...bitVectorSegments,
+  ])
+
+  return bytes
+}
+
+function serializeNullableObjectAbi(abi: AbiManager<Type.nullableObject>): Uint8Array {
+  const markers = abi.typeDefinitions.map(typeDef => typeDef.marker)
+  const serializedMarkers = serializeMarkers(markers)
+  const bv = new BitVector(abi.typeDefinitions.length)
+
+  const serializedTypeDefs: Bytes<7>[] = []
+  let startSegmentIndex = 0
+  for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
+    serializedTypeDefs.push(
+      new Bytes([
+        typeDefinition.beeSon.abiManager.type.charCodeAt(0),
+        ...serializeUint32(startSegmentIndex),
+        ...serializedMarkers.serializedMarkerIndices[index],
+      ]),
+    )
+    if (typeDefinition.beeSon.abiManager.nullable) {
+      bv.setBit(index)
+    }
+    startSegmentIndex += typeDefinition.segmentLength!
+  }
+  const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
+  // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
+  const abiSegmentSize = segmentSize(
+    4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length + bv.bitVector.length,
+  )
+
+  const bytes = new Uint8Array([
+    ...serializeUint16(abiSegmentSize),
+    ...serializeUint16(serializedTypeDefs.length),
+    ...serializeUint16(serializedMarkers.serializedMarkers.length),
+    ...flattenBytesArray(serializedTypeDefs),
+    ...serializedMarkers.serializedMarkers,
+    ...bv.bitVector,
+  ])
 
   return bytes
 }
@@ -811,8 +883,6 @@ function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
     ...flattenBytesArray(serializedTypeDefs),
     ...serializedMarkers.serializedMarkers,
   ])
-
-  encryptDecrypt(abi.obfuscationKey, bytes)
 
   return bytes
 }

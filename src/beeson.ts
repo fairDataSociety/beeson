@@ -8,6 +8,7 @@ import {
   SwarmFeedCid,
   SwarmManifestCid,
 } from './address-serializer'
+import { BitVector } from './bitvector'
 import { deserializeBoolean, serializeBoolean } from './boolean-serializer'
 import { deserializeFloat, deserializeInt, serializeFloat, serliazeInt } from './number-serializer'
 import { deserializeString, serializeString } from './string-seralizer'
@@ -261,6 +262,9 @@ export class BeeSon<T extends JsonValue> {
     if (this._json === undefined) {
       throw new JsonValueUndefinedError()
     }
+    if (this._json === null) {
+      return new Uint8Array(0)
+    }
     // numbers
     if (isBeeSonType(this, Type.float32)) {
       const bytes = segmentPaddingFromLeft(serializeFloat(this._json, Type.float32))
@@ -333,16 +337,16 @@ export class BeeSon<T extends JsonValue> {
     }
     // container types
     if (isAbiManagerType(this._abiManager, Type.object) || isAbiManagerType(this._abiManager, Type.array)) {
-      const objectValuesBytes: Uint8Array[] = []
-      for (const typeDefinition of this._abiManager.typeDefinitions) {
-        objectValuesBytes.push(typeDefinition.beeSon.serialize({ withoutBlobHeader: true }))
-      }
-
-      // objectValuesBytes already 32 bytes padded
-      const bytes = flattenBytesArray(objectValuesBytes)
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
-
-      return bytes
+      return this.serializeContainerElementsData()
+    }
+    if (
+      isAbiManagerType(this._abiManager, Type.nullableObject) ||
+      isAbiManagerType(this._abiManager, Type.nullableArray)
+    ) {
+      return new Uint8Array([
+        ...this.serializeContainerElementsNulls(),
+        ...this.serializeContainerElementsData(),
+      ])
     }
 
     throw new NotSupportedTypeError(this.abiManager.type)
@@ -362,6 +366,60 @@ export class BeeSon<T extends JsonValue> {
       return this._abiManager.setTypeDefinitionNullable(index as number, nullable)
     }
     throw new Error(`BeeSon object is not a nullable container type. It has type: ${this._abiManager.type}`)
+  }
+
+  private serializeContainerElementsData(): Uint8Array {
+    if (
+      !isAbiManagerType(this._abiManager, Type.object) &&
+      !isAbiManagerType(this._abiManager, Type.array) &&
+      !isAbiManagerType(this._abiManager, Type.nullableArray) &&
+      !isAbiManagerType(this._abiManager, Type.nullableObject)
+    ) {
+      throw new Error(`BeeSon is not a (nullable) container type. it has type: ${this.abiManager.type}`)
+    }
+    const objectValuesBytes: Uint8Array[] = []
+    for (const typeDefinition of this._abiManager.typeDefinitions) {
+      objectValuesBytes.push(typeDefinition.beeSon.serialize({ withoutBlobHeader: true }))
+    }
+
+    // objectValuesBytes already 32 bytes padded
+    const bytes = flattenBytesArray(objectValuesBytes)
+    encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+
+    return bytes
+  }
+
+  /** Serialize Null bitvector for nullable containers in the data implementation */
+  private serializeContainerElementsNulls(): Uint8Array {
+    if (
+      !isAbiManagerType(this._abiManager, Type.nullableArray) &&
+      !isAbiManagerType(this._abiManager, Type.nullableObject)
+    ) {
+      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.abiManager.type}`)
+    }
+
+    // const
+    const bv = new BitVector(this._abiManager.typeDefinitions.length)
+    if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
+      for (const [index, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+        const typeDef = typeDefinition as TypeDefinitionO
+        if ((this._json as Record<string, unknown>)[typeDef.marker] === null) {
+          bv.setBit(index)
+        }
+      }
+    } else {
+      // it is nullableArray
+      for (const [index] of this._abiManager.typeDefinitions.entries()) {
+        if ((this._json as unknown[])[index] === null) {
+          bv.setBit(index)
+        }
+      }
+    }
+
+    const vektorSegments = segmentPaddingFromRight(bv.bitVector)
+    encryptDecrypt(this._abiManager.obfuscationKey, vektorSegments)
+
+    return vektorSegments
   }
 
   private tryToSetArray(value: Array<unknown>) {
