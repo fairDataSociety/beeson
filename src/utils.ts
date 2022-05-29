@@ -299,3 +299,7 @@ export class AssertJsonValueError extends Error {
 export function clearUndefinedObjValues(obj: Record<string | number | symbol, unknown>) {
   Object.keys(obj).forEach(key => obj[key] === undefined && delete obj[key])
 }
+
+export function segmentSize(bytesLength: number): number {
+  return Math.ceil(bytesLength / SEGMENT_SIZE)
+}
