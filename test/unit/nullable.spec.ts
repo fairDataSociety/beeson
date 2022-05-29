@@ -22,6 +22,8 @@ describe('nullable operations on beeson', () => {
     expect(beeson.abiManager.type).toBe(Type.object)
     const nullableBeeSon = beeson.getNullableContainer()
     expect(nullableBeeSon.abiManager.type).toBe(Type.nullableObject)
+    const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
+    expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const json2 = nullableBeeSon.json
     json2.age = null
     nullableBeeSon.json = json2
@@ -50,11 +52,13 @@ describe('nullable operations on beeson', () => {
     const beeson = new BeeSon<TestDataMain>({ json })
     const nullableBeeSon = beeson.getNullableContainer()
     nullableBeeSon.setIndexNullable('name', false)
+    const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
+    expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const abiObject = nullableBeeSon.abiManager.getAbiObject()
     const abiManager = AbiManager.loadAbiObject(abiObject, new Bytes(32))
     const beesonAgain = new BeeSon({ abiManager })
-    beesonAgain.json = { name: 'valami', age: null, buddies: null, id: null }
     beesonAgain.json = json
+    beesonAgain.json = { name: 'valami', age: null, buddies: null, id: null }
     expect(() => (beesonAgain.json = { name: 'nvm' })).toThrowError(
       /^Given JSON object has 1 key length, when the abi defines 4 length./,
     )
