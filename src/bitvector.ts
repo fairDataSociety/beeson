@@ -1,7 +1,7 @@
 export class BitVector {
   public bitVector: Uint8Array
-  constructor(private bitCount: number) {
-    this.bitVector = new Uint8Array(Math.ceil(bitCount / 8))
+  constructor(private bitCount: number, bitVektor?: Uint8Array) {
+    this.bitVector = bitVektor ? bitVektor : new Uint8Array(Math.ceil(bitCount / 8))
   }
 
   /** Clear the i-th bit */
