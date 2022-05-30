@@ -156,9 +156,15 @@ export class BeeSon<T extends JsonValue> {
         isAbiManagerType(this._abiManager, Type.nullableObject)
       ) {
         containerBytes.push(this.serializeContainerElementsNulls())
-      }
-      for (const typeDefition of this._abiManager.typeDefinitions) {
-        containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+        for (const typeDefition of this._abiManager.typeDefinitions) {
+          if (!(typeDefition.beeSon._abiManager.nullable && typeDefition.beeSon.json === null)) {
+            containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+          }
+        }
+      } else {
+        for (const typeDefition of this._abiManager.typeDefinitions) {
+          containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+        }
       }
 
       return flattenBytesArray(containerBytes)
