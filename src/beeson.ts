@@ -92,8 +92,8 @@ export class BeeSon<T extends JsonValue> {
       throw new JsonValueUndefinedError()
     }
 
-    if (isBeeSonType(this, Type.array)) return [...this._json] as T
-    else if (isBeeSonType(this, Type.object)) return { ...(this._json as object) } as T
+    if (isBeeSonType(this, Type.array) && this._json !== null) return [...this._json] as T
+    else if (isBeeSonType(this, Type.object) && this._json !== null) return { ...(this._json as object) } as T
 
     return this._json
   }
@@ -275,6 +275,7 @@ export class BeeSon<T extends JsonValue> {
       for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
         if (bitVector.getBit(i)) {
           typeDefinition.beeSon.json = null
+          arr.push(typeDefinition.beeSon.json)
 
           continue
         }
@@ -304,14 +305,14 @@ export class BeeSon<T extends JsonValue> {
         decryptedData.slice(0, segmentOffset * SEGMENT_SIZE),
       )
       for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+        const typeDef = typeDefinition as TypeDefinitionO
+        const key = typeDef.marker
         if (bitVector.getBit(i)) {
           typeDefinition.beeSon.json = null
+          obj[key] = typeDefinition.beeSon.json
 
           continue
         }
-
-        const typeDef = typeDefinition as TypeDefinitionO
-        const key = typeDef.marker
         const offset = segmentOffset * SEGMENT_SIZE
         const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
         if (isContainerType(typeDef.beeSon.abiManager.type)) {

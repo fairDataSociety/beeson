@@ -820,7 +820,7 @@ function deserializeNullableArrayAbi(
   const starBitVektorByteIndex = 4 + flattenTypeDefsLength * 5
   const bitVector = new BitVector(
     flattenTypeDefsLength,
-    data.slice(starBitVektorByteIndex, Math.ceil(flattenTypeDefsLength / 8)),
+    data.slice(starBitVektorByteIndex, starBitVektorByteIndex + Math.ceil(flattenTypeDefsLength / 8)),
   )
 
   // deserialize typedefs
@@ -902,7 +902,7 @@ function deserializeNullableObjectAbi(
   const starBitVektorByteIndex = offset + flattenTypeDefsLength * 7 + markerBytesLength
   const bitVector = new BitVector(
     flattenTypeDefsLength,
-    data.slice(starBitVektorByteIndex, Math.ceil(flattenTypeDefsLength / 8)),
+    data.slice(starBitVektorByteIndex, starBitVektorByteIndex + Math.ceil(flattenTypeDefsLength / 8)),
   )
 
   // deserialize typedefs
