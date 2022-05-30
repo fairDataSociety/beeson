@@ -49,6 +49,7 @@ describe('nullable operations on beeson', () => {
       id: 'ID2',
       buddies: [{ name: 'jesus', age: 33, id: 'ID1' }],
     }
+    const json2 = { name: 'valami', age: null, buddies: null, id: null }
     const beeson = new BeeSon<TestDataMain>({ json })
     const nullableBeeSon = beeson.getNullableContainer()
     nullableBeeSon.setIndexNullable('name', false)
@@ -58,7 +59,10 @@ describe('nullable operations on beeson', () => {
     const abiManager = AbiManager.loadAbiObject(abiObject, new Bytes(32))
     const beesonAgain = new BeeSon({ abiManager })
     beesonAgain.json = json
-    beesonAgain.json = { name: 'valami', age: null, buddies: null, id: null }
+    beesonAgain.json = json2
+    expect(beesonAgain.json).toStrictEqual(json2)
+    const nullableBeeSonAgain2 = BeeSon.deserialize(beesonAgain.serialize())
+    expect(nullableBeeSonAgain2.json).toStrictEqual(beesonAgain.json)
     expect(() => (beesonAgain.json = { name: 'nvm' })).toThrowError(
       /^Given JSON object has 1 key length, when the abi defines 4 length./,
     )
