@@ -1,4 +1,3 @@
-/* eslint-disable complexity */
 import { AbiManager, generateAbi, Header, isAbiManagerType, TypeDefinitionO } from './abi'
 import {
   deserializeSwarmCac,
@@ -28,7 +27,6 @@ import {
   ValueType,
 } from './types'
 import {
-  assertJsonValue,
   Bytes,
   encryptDecrypt,
   flattenBytesArray,
@@ -233,114 +231,13 @@ export class BeeSon<T extends JsonValue> {
     }
     // container types
     else if (isAbiManagerType(this._abiManager, Type.object)) {
-      const obj: Record<string, unknown> = {}
-      let segmentOffset = 0
-      for (const typeDefinition of this._abiManager.typeDefinitions) {
-        const typeDef = typeDefinition as TypeDefinitionO
-        const key = typeDef.marker
-        const offset = segmentOffset * SEGMENT_SIZE
-        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-        if (isContainerType(typeDef.beeSon.abiManager.type)) {
-          typeDef.beeSon = BeeSon.deserialize(decryptedData.slice(offset, endOffset), {
-            // abimanager type/obfuscationkey and else is set already on abi deserialisation
-            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-            type: typeDef.beeSon.abiManager.type,
-            version: typeDef.beeSon.abiManager.version,
-          })
-          obj[key] = typeDef.beeSon.json
-        } else {
-          typeDef.beeSon.deserializeData(decryptedData.slice(offset, endOffset))
-          obj[key] = typeDef.beeSon.json
-        }
-        segmentOffset += typeDef.segmentLength || 0
-      }
-      this.json = obj as T
+      this.deserializeObject(decryptedData)
     } else if (isAbiManagerType(this._abiManager, Type.array)) {
-      const arr: unknown[] = []
-      let segmentOffset = 0
-      for (const typeDefinition of this._abiManager.typeDefinitions) {
-        const typeDef = typeDefinition
-        const offset = segmentOffset * SEGMENT_SIZE
-        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-        if (isContainerType(typeDef.beeSon.abiManager.type)) {
-          typeDef.beeSon = BeeSon.deserialize(decryptedData.slice(offset, endOffset), {
-            // abimanager type/obfuscationkey and else is set already on abi deserialisation
-            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-            type: typeDef.beeSon.abiManager.type,
-            version: typeDef.beeSon.abiManager.version,
-          })
-          arr.push(typeDef.beeSon.json)
-        } else {
-          typeDef.beeSon.deserializeData(decryptedData.slice(offset, endOffset))
-          arr.push(typeDef.beeSon.json)
-        }
-        segmentOffset += typeDef.segmentLength || 0
-      }
-      this.json = arr as T
+      this.deserializeArray(decryptedData)
     } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
-      const arr: unknown[] = []
-      let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
-      const bitVector = this.deserializeContainerElementsNulls(
-        decryptedData.slice(0, segmentOffset * SEGMENT_SIZE),
-      )
-      for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
-        if (bitVector.getBit(i)) {
-          typeDefinition.beeSon.json = null
-          arr.push(typeDefinition.beeSon.json)
-
-          continue
-        }
-
-        const typeDef = typeDefinition
-        const offset = segmentOffset * SEGMENT_SIZE
-        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-        if (isContainerType(typeDef.beeSon.abiManager.type)) {
-          typeDef.beeSon = BeeSon.deserialize(decryptedData.slice(offset, endOffset), {
-            // abimanager type/obfuscationkey and else is set already on abi deserialisation
-            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-            type: typeDef.beeSon.abiManager.type,
-            version: typeDef.beeSon.abiManager.version,
-          })
-          arr.push(typeDef.beeSon.json)
-        } else {
-          typeDef.beeSon.deserializeData(decryptedData.slice(offset, endOffset))
-          arr.push(typeDef.beeSon.json)
-        }
-        segmentOffset += typeDef.segmentLength || 0
-      }
-      this.json = arr as T
+      this.deserializeNullableArray(decryptedData)
     } else if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
-      const obj: Record<string, unknown> = {}
-      let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
-      const bitVector = this.deserializeContainerElementsNulls(
-        decryptedData.slice(0, segmentOffset * SEGMENT_SIZE),
-      )
-      for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
-        const typeDef = typeDefinition as TypeDefinitionO
-        const key = typeDef.marker
-        if (bitVector.getBit(i)) {
-          typeDefinition.beeSon.json = null
-          obj[key] = typeDefinition.beeSon.json
-
-          continue
-        }
-        const offset = segmentOffset * SEGMENT_SIZE
-        const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-        if (isContainerType(typeDef.beeSon.abiManager.type)) {
-          typeDef.beeSon = BeeSon.deserialize(decryptedData.slice(offset, endOffset), {
-            // abimanager type/obfuscationkey and else is set already on abi deserialisation
-            obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-            type: typeDef.beeSon.abiManager.type,
-            version: typeDef.beeSon.abiManager.version,
-          })
-          obj[key] = typeDef.beeSon.json
-        } else {
-          typeDef.beeSon.deserializeData(decryptedData.slice(offset, endOffset))
-          obj[key] = typeDef.beeSon.json
-        }
-        segmentOffset += typeDef.segmentLength || 0
-      }
-      this.json = obj as T
+      this.deserializeNullableObject(decryptedData)
     }
   }
 
@@ -523,28 +420,127 @@ export class BeeSon<T extends JsonValue> {
     return new BitVector(this._abiManager.typeDefinitions.length, bitVectorBytes)
   }
 
-  private tryToSetArray(value: Array<unknown>) {
-    if (isAbiManagerType(this._abiManager, Type.array)) {
-      for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
-        try {
-          const arrayItem = value[index]
-          assertJsonValue(arrayItem)
-          typeDefition.beeSon.json = arrayItem
-        } catch (e) {
-          throw new Error(`BeeSon Array assertion problem at index ${index}: ${(e as Error).message}`)
-        }
+  private deserializeObject(data: Uint8Array) {
+    if (!isAbiManagerType(this._abiManager, Type.object)) throw new Error(`ABI type is not a ${Type.object}`)
+    const obj: Record<string, unknown> = {}
+    let segmentOffset = 0
+    for (const typeDefinition of this._abiManager.typeDefinitions) {
+      const typeDef = typeDefinition as TypeDefinitionO
+      const key = typeDef.marker
+      const offset = segmentOffset * SEGMENT_SIZE
+      const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+          // abimanager type/obfuscationkey and else is set already on abi deserialisation
+          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+          type: typeDef.beeSon.abiManager.type,
+          version: typeDef.beeSon.abiManager.version,
+        })
+        obj[key] = typeDef.beeSon.json
+      } else {
+        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        obj[key] = typeDef.beeSon.json
       }
-    } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
-      for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
-        try {
-          const arrayItem = value[index]
-
-          typeDefition.beeSon.json = arrayItem as JsonValue
-        } catch (e) {
-          throw new Error(`BeeSon Array assertion problem at index ${index}: ${(e as Error).message}`)
-        }
-      }
+      segmentOffset += typeDef.segmentLength || 0
     }
+    this.json = obj as T
+  }
+
+  private deserializeNullableObject(data: Uint8Array) {
+    if (!isAbiManagerType(this._abiManager, Type.nullableObject)) {
+      throw new Error(`ABI type is not a ${Type.object}`)
+    }
+    const obj: Record<string, unknown> = {}
+    let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
+    const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
+    for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+      const typeDef = typeDefinition as TypeDefinitionO
+      const key = typeDef.marker
+      if (bitVector.getBit(i)) {
+        typeDefinition.beeSon.json = null
+        obj[key] = typeDefinition.beeSon.json
+
+        continue
+      }
+      const offset = segmentOffset * SEGMENT_SIZE
+      const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+          // abimanager type/obfuscationkey and else is set already on abi deserialisation
+          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+          type: typeDef.beeSon.abiManager.type,
+          version: typeDef.beeSon.abiManager.version,
+        })
+        obj[key] = typeDef.beeSon.json
+      } else {
+        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        obj[key] = typeDef.beeSon.json
+      }
+      segmentOffset += typeDef.segmentLength || 0
+    }
+    this.json = obj as T
+  }
+
+  private deserializeNullableArray(data: Uint8Array) {
+    if (!isAbiManagerType(this._abiManager, Type.nullableArray)) {
+      throw new Error(`ABI type is not a ${Type.object}`)
+    }
+    const arr: unknown[] = []
+    let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
+    const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
+    for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+      if (bitVector.getBit(i)) {
+        typeDefinition.beeSon.json = null
+        arr.push(typeDefinition.beeSon.json)
+
+        continue
+      }
+
+      const typeDef = typeDefinition
+      const offset = segmentOffset * SEGMENT_SIZE
+      const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+          // abimanager type/obfuscationkey and else is set already on abi deserialisation
+          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+          type: typeDef.beeSon.abiManager.type,
+          version: typeDef.beeSon.abiManager.version,
+        })
+        arr.push(typeDef.beeSon.json)
+      } else {
+        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        arr.push(typeDef.beeSon.json)
+      }
+      segmentOffset += typeDef.segmentLength || 0
+    }
+    this.json = arr as T
+  }
+
+  private deserializeArray(data: Uint8Array) {
+    if (!isAbiManagerType(this._abiManager, Type.array)) {
+      throw new Error(`ABI type is not a ${Type.object}`)
+    }
+    const arr: unknown[] = []
+    let segmentOffset = 0
+    for (const typeDefinition of this._abiManager.typeDefinitions) {
+      const typeDef = typeDefinition
+      const offset = segmentOffset * SEGMENT_SIZE
+      const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
+      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+          // abimanager type/obfuscationkey and else is set already on abi deserialisation
+          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
+          type: typeDef.beeSon.abiManager.type,
+          version: typeDef.beeSon.abiManager.version,
+        })
+        arr.push(typeDef.beeSon.json)
+      } else {
+        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        arr.push(typeDef.beeSon.json)
+      }
+      segmentOffset += typeDef.segmentLength || 0
+    }
+    this.json = arr as T
   }
 
   public getNullableContainer(): NullableContainerBeeSon<T> {
