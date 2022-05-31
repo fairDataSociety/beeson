@@ -1,6 +1,6 @@
 import { AbiManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
-import { SwarmFeedCid, SwarmManifestCid } from '../../src/address-serializer'
+import { SwarmFeedCid, SwarmManifestCid } from '../../src/marshalling/address-serializer'
 import { randomByteArray } from './utils'
 
 describe('beeson', () => {
