@@ -10,9 +10,7 @@ export enum Type {
   boolean = 1,
   float32 = 2,
   float64 = 3,
-  string = 4,
-  swarmCac = 8,
-  swarmSoc = 9,
+  string = 8,
   uint8 = 16,
   int8 = 17,
   int16 = 25,
@@ -22,6 +20,8 @@ export enum Type {
   nullableArray = 33,
   object = 64,
   nullableObject = 65,
+  swarmCac = 128,
+  swarmSoc = 132,
 }
 
 export type ContainerTypes = Type.array | Type.object
