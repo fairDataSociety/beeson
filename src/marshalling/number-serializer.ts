@@ -1,7 +1,7 @@
 // data derializations happen in bigEndian manner
 
-import { Type } from './types'
-import { assertNumber, Bytes } from './utils'
+import { Type } from '../types'
+import { assertNumber, Bytes } from '../utils'
 
 class NumberDeserialisationError extends Error {
   constructor(type: 'float' | 'integer', expectedLength: number, receivedLength: number) {

@@ -1,8 +1,13 @@
 import { AbiManager, Header, TypeDefinitionO } from '.'
 import { assertBeeSonType, BeeSon, Type } from '..'
 import { BitVector } from '../bitvector'
-import { deserializeUint16, deserializeUint32, serializeUint16, serializeUint32 } from '../number-serializer'
-import { serializeString } from '../string-seralizer'
+import {
+  deserializeUint16,
+  deserializeUint32,
+  serializeUint16,
+  serializeUint32,
+} from '../marshalling/number-serializer'
+import { serializeString } from '../marshalling/string-seralizer'
 import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } from '../utils'
 
 const OBJECT_TYPE_DEF_LENGTH = 7

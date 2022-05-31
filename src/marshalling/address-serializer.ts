@@ -1,4 +1,4 @@
-import { AssertJsonValueError, Bytes, bytesToHex, FlavoredType, hexToBytes } from './utils'
+import { AssertJsonValueError, Bytes, bytesToHex, FlavoredType, hexToBytes } from '../utils'
 import { decodeFeedCid, decodeManifestCid, encodeReference, ReferenceType } from '@ethersphere/swarm-cid'
 
 export type SwarmManifestCid = FlavoredType<Parameters<typeof decodeManifestCid>[0], 'SwarmManifestCid'>

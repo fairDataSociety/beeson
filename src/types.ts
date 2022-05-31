@@ -1,4 +1,4 @@
-import { SwarmFeedCid, SwarmManifestCid } from './address-serializer'
+import { SwarmFeedCid, SwarmManifestCid } from './marshalling/address-serializer'
 
 export type JsonMap<T> = {
   [K in keyof T]: JsonValue

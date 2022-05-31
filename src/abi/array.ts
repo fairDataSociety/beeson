@@ -1,7 +1,12 @@
 import { AbiManager, Header, TypeDefinitionA } from '.'
 import { BeeSon } from '../beeson'
 import { BitVector } from '../bitvector'
-import { deserializeUint16, deserializeUint32, serializeUint16, serializeUint32 } from '../number-serializer'
+import {
+  deserializeUint16,
+  deserializeUint32,
+  serializeUint16,
+  serializeUint32,
+} from '../marshalling/number-serializer'
 import { assertBeeSonType, Type } from '../types'
 import { Bytes, encryptDecrypt, flattenBytesArray, segmentPaddingFromRight, segmentSize } from '../utils'
 

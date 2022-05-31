@@ -7,11 +7,16 @@ import {
   serializeSwarmSoc,
   SwarmFeedCid,
   SwarmManifestCid,
-} from './address-serializer'
+} from './marshalling/address-serializer'
 import { BitVector } from './bitvector'
-import { deserializeBoolean, serializeBoolean } from './boolean-serializer'
-import { deserializeFloat, deserializeInt, serializeFloat, serliazeInt } from './number-serializer'
-import { deserializeString, serializeString } from './string-seralizer'
+import { deserializeBoolean, serializeBoolean } from './marshalling/boolean-serializer'
+import {
+  deserializeFloat,
+  deserializeInt,
+  serializeFloat,
+  serliazeInt,
+} from './marshalling/number-serializer'
+import { deserializeString, serializeString } from './marshalling/string-seralizer'
 import {
   isContainerType,
   JsonMap,

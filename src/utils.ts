@@ -1,6 +1,6 @@
 import { JsonMap, JsonValue } from './types'
 import { keccak256, Message } from 'js-sha3'
-import { isSwarmCid } from './address-serializer'
+import { isSwarmCid } from './marshalling/address-serializer'
 
 export const SEGMENT_SIZE = 32
 
