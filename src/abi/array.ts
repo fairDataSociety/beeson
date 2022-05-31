@@ -16,10 +16,7 @@ export function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
   const serializedTypeDefs: Bytes<5>[] = []
   for (const typeDefinition of abi.typeDefinitions) {
     serializedTypeDefs.push(
-      new Bytes([
-        typeDefinition.beeSon.abiManager.type.charCodeAt(0),
-        ...serializeUint32(typeDefinition.segmentLength),
-      ]),
+      new Bytes([typeDefinition.beeSon.abiManager.type, ...serializeUint32(typeDefinition.segmentLength)]),
     )
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
@@ -57,7 +54,7 @@ export function deserializeArrayAbi(
   const abiByteSize = abiSegmentSize * 32
   const typeDefinitions: TypeDefinitionA[] = []
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
+    const type = data.slice(offset, offset + 1)[0]
     const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
 
     try {
@@ -87,10 +84,7 @@ export function serializeNullableArrayAbi(abi: AbiManager<Type.nullableArray>): 
   const bv = new BitVector(abi.typeDefinitions.length)
   for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
     serializedTypeDefs.push(
-      new Bytes([
-        typeDefinition.beeSon.abiManager.type.charCodeAt(0),
-        ...serializeUint32(typeDefinition.segmentLength),
-      ]),
+      new Bytes([typeDefinition.beeSon.abiManager.type, ...serializeUint32(typeDefinition.segmentLength)]),
     )
     if (typeDefinition.beeSon.abiManager.nullable) {
       bv.setBit(index)
@@ -140,7 +134,7 @@ export function deserializeNullableArrayAbi(
   const typeDefinitions: TypeDefinitionA[] = []
   let i = 0
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
+    const type = data.slice(offset, offset + 1)[0]
     const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
 
     try {

@@ -295,7 +295,7 @@ export class AbiManager<T extends Type> {
   }
 
   public serializeHeader(): Bytes<64> {
-    const data = new Uint8Array([...serializeVersion(this._version), this._type.charCodeAt(0)])
+    const data = new Uint8Array([...serializeVersion(this._version), this._type])
     encryptDecrypt(this.obfuscationKey, data)
 
     return new Bytes([...this.obfuscationKey, ...data])
@@ -360,7 +360,7 @@ export class AbiManager<T extends Type> {
     encryptDecrypt(obfuscationKey, decryptedBytes)
     const versionHash = decryptedBytes.slice(0, 31)
     const version = Version.unpackedV0_1 // Only current version
-    const type = String.fromCharCode(decryptedBytes[31]) as Type
+    const type = decryptedBytes[31] as Type
 
     // version check
     if (!equalBytes(versionHash, serializeVersion(Version.unpackedV0_1))) {

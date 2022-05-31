@@ -4,27 +4,24 @@ export type JsonMap<T> = {
   [K in keyof T]: JsonValue
 }
 
+/** string types, numeric types, misc types, container types */
 export enum Type {
-  // string types
-  string = 'S',
-  // numeric types
-  int8 = 'i',
-  uint8 = 'U',
-  int16 = 'I',
-  int32 = 'l',
-  int64 = 'L',
-  float32 = 'd',
-  float64 = 'D',
-  // misc types
-  boolean = 'b',
-  null = 'n',
-  swarmCac = 'c',
-  swarmSoc = 's',
-  // container types
-  object = 'O',
-  nullableObject = 'o',
-  array = 'A',
-  nullableArray = 'a',
+  null = 0,
+  boolean = 1,
+  float32 = 2,
+  float64 = 3,
+  string = 4,
+  swarmCac = 8,
+  swarmSoc = 9,
+  uint8 = 16,
+  int8 = 17,
+  int16 = 25,
+  int32 = 29,
+  int64 = 31,
+  array = 32,
+  nullableArray = 33,
+  object = 64,
+  nullableObject = 65,
 }
 
 export type ContainerTypes = Type.array | Type.object
@@ -92,7 +89,7 @@ export type Nullable<T> = {
 }
 
 export class NotSupportedTypeError extends Error {
-  constructor(expectedType: string) {
+  constructor(expectedType: number) {
     super(`Type ${expectedType} is not a supported BeeSon type`)
   }
 }

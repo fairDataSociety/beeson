@@ -21,7 +21,7 @@ export function serializeNullableObjectAbi(abi: AbiManager<Type.nullableObject>)
   for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.abiManager.type.charCodeAt(0),
+        typeDefinition.beeSon.abiManager.type,
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
@@ -74,7 +74,7 @@ export function deserializeNullableObjectAbi(
   let i = 0
   let markerOffset = 0
   while (offset < OBJECT_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
+    const type = data.slice(offset, offset + 1)[0]
     const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
 
     const markerLength = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
@@ -131,7 +131,7 @@ export function deserializeObjectAbi(
   const typeDefinitions: TypeDefinitionO[] = []
   let markerOffset = 0
   while (offset < OBJECT_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = String.fromCharCode(data.slice(offset, offset + 1)[0])
+    const type = data.slice(offset, offset + 1)[0]
     const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
 
     const markerLength = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
@@ -171,7 +171,7 @@ export function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
   for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.abiManager.type.charCodeAt(0),
+        typeDefinition.beeSon.abiManager.type,
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
