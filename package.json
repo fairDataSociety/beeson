@@ -1,5 +1,5 @@
 {
-  "name": "beeson",
+  "name": "@fairdatasociety/beeson",
   "version": "1.0.0",
   "description": "JSON serialisation format for web3",
   "main": "dist/index.js",
