@@ -382,7 +382,7 @@ export class AbiManager<T extends Type> {
 
   public static loadAbiObject<T extends Type>(
     abi: AbiObject<T>,
-    obfuscationKey: Bytes<32>,
+    obfuscationKey: Bytes<32> = new Bytes(32),
     version = Version.unpackedV0_1,
     nullable = false,
   ): AbiManager<T> {

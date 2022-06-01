@@ -1,3 +1,3 @@
 export * from './beeson'
-export * from './abi'
-export * from './types'
+export { AbiManager } from './abi'
+export { Type } from './types'

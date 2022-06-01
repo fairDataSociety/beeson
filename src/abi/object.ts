@@ -1,5 +1,6 @@
 import { AbiManager, Header, TypeDefinitionO } from '.'
-import { assertBeeSonType, BeeSon, Type } from '..'
+import { BeeSon } from '../beeson'
+import { Type, assertBeeSonType } from '../types'
 import { BitVector } from '../bitvector'
 import {
   deserializeUint16,
