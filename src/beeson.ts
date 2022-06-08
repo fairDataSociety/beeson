@@ -1,4 +1,4 @@
-import { AbiManager, generateAbi, Header, isAbiManagerType, TypeDefinitionO } from './abi'
+import { DnaManager, generateDna, Header, isDnaManagerType, TypeDefinitionO } from './dna'
 import {
   deserializeSwarmCac,
   deserializeSwarmSoc,
@@ -38,7 +38,7 @@ import {
 } from './utils'
 
 function isBeeSonType<T extends Type>(beeSon: unknown, type: T): beeSon is BeeSon<TypeValue<T>> {
-  return (beeSon as BeeSon<JsonValue>).abiManager.type === type
+  return (beeSon as BeeSon<JsonValue>).dnaManager.type === type
 }
 
 interface JsonParams<T extends JsonValue> {
@@ -46,12 +46,12 @@ interface JsonParams<T extends JsonValue> {
   obfuscationKey?: Bytes<32>
 }
 
-interface AbiParams<T extends JsonValue = JsonValue> {
-  abiManager: AbiManager<ValueType<T>>
+interface DnaParams<T extends JsonValue = JsonValue> {
+  dnaManager: DnaManager<ValueType<T>>
 }
 
-function isAbiParams<T extends JsonValue>(params: unknown): params is AbiParams<T> {
-  return typeof params === 'object' && Object.keys(params as object).includes('abiManager')
+function isDnaParams<T extends JsonValue>(params: unknown): params is DnaParams<T> {
+  return typeof params === 'object' && Object.keys(params as object).includes('dnaManager')
 }
 
 function isJsonParams<T extends JsonValue>(params: unknown): params is JsonParams<T> {
@@ -71,23 +71,23 @@ type NullableContainerBeeSon<T extends JsonValue> = T extends JsonMap<unknown>
   : never
 
 export class BeeSon<T extends JsonValue> {
-  private _abiManager: AbiManager<ValueType<T>>
+  private _dnaManager: DnaManager<ValueType<T>>
   private _json: T | undefined
 
-  constructor(params: JsonParams<T> | AbiParams<T>) {
-    if (isAbiParams(params)) {
-      this._abiManager = params.abiManager
+  constructor(params: JsonParams<T> | DnaParams<T>) {
+    if (isDnaParams(params)) {
+      this._dnaManager = params.dnaManager
     } else if (isJsonParams(params)) {
       this._json = params.json
-      this._abiManager = generateAbi(this._json)
+      this._dnaManager = generateDna(this._json)
     } else throw new Error(`Invalid BeeSon constructor parameters`)
   }
 
   // Setters/getters
 
-  /** ABI manager instance of the BeeSon value */
-  public get abiManager(): AbiManager<ValueType<T>> {
-    return this._abiManager
+  /** DNA manager instance of the BeeSon value */
+  public get dnaManager(): DnaManager<ValueType<T>> {
+    return this._dnaManager
   }
 
   public get json(): T {
@@ -102,21 +102,21 @@ export class BeeSon<T extends JsonValue> {
   }
 
   /**
-   * Set BeeSon value according to its corresponding ABI
+   * Set BeeSon value according to its corresponding DNA
    */
   public set json(value: T) {
-    this._abiManager.assertJsonValue(value)
+    this._dnaManager.assertJsonValue(value)
 
-    if (this._abiManager.nullable && isNull(value)) {
+    if (this._dnaManager.nullable && isNull(value)) {
       this._json = value
 
       return
     }
     if (
-      isAbiManagerType(this._abiManager, Type.array) ||
-      isAbiManagerType(this._abiManager, Type.nullableArray)
+      isDnaManagerType(this._dnaManager, Type.array) ||
+      isDnaManagerType(this._dnaManager, Type.nullableArray)
     ) {
-      for (const [index, typeDefition] of this._abiManager.typeDefinitions.entries()) {
+      for (const [index, typeDefition] of this._dnaManager.typeDefinitions.entries()) {
         try {
           const arrayItem = (value as Array<unknown>)[index]
           typeDefition.beeSon.json = arrayItem as JsonValue
@@ -125,10 +125,10 @@ export class BeeSon<T extends JsonValue> {
         }
       }
     } else if (
-      isAbiManagerType(this._abiManager, Type.object) ||
-      isAbiManagerType(this._abiManager, Type.nullableObject)
+      isDnaManagerType(this._dnaManager, Type.object) ||
+      isDnaManagerType(this._dnaManager, Type.nullableObject)
     ) {
-      for (const typeDefinition of this._abiManager.typeDefinitions) {
+      for (const typeDefinition of this._dnaManager.typeDefinitions) {
         const def = typeDefinition as TypeDefinitionO // TODO create bug report in typescript
         const marker = def.marker
         try {
@@ -145,27 +145,27 @@ export class BeeSon<T extends JsonValue> {
 
   public serialize(options?: { withoutBlobHeader?: boolean }): Uint8Array {
     const withoutBlobHeader = options?.withoutBlobHeader || false
-    const abiBytes = this.serializeAbi(withoutBlobHeader)
+    const dnaBytes = this.serializeDna(withoutBlobHeader)
 
     if (
-      isAbiManagerType(this._abiManager, Type.array) ||
-      isAbiManagerType(this._abiManager, Type.object) ||
-      isAbiManagerType(this._abiManager, Type.nullableArray) ||
-      isAbiManagerType(this._abiManager, Type.nullableObject)
+      isDnaManagerType(this._dnaManager, Type.array) ||
+      isDnaManagerType(this._dnaManager, Type.object) ||
+      isDnaManagerType(this._dnaManager, Type.nullableArray) ||
+      isDnaManagerType(this._dnaManager, Type.nullableObject)
     ) {
-      const containerBytes: Uint8Array[] = [abiBytes]
+      const containerBytes: Uint8Array[] = [dnaBytes]
       if (
-        isAbiManagerType(this._abiManager, Type.nullableArray) ||
-        isAbiManagerType(this._abiManager, Type.nullableObject)
+        isDnaManagerType(this._dnaManager, Type.nullableArray) ||
+        isDnaManagerType(this._dnaManager, Type.nullableObject)
       ) {
         containerBytes.push(this.serializeContainerElementsNulls())
-        for (const typeDefition of this._abiManager.typeDefinitions) {
-          if (!(typeDefition.beeSon._abiManager.nullable && typeDefition.beeSon.json === null)) {
+        for (const typeDefition of this._dnaManager.typeDefinitions) {
+          if (!(typeDefition.beeSon._dnaManager.nullable && typeDefition.beeSon.json === null)) {
             containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
           }
         }
       } else {
-        for (const typeDefition of this._abiManager.typeDefinitions) {
+        for (const typeDefition of this._dnaManager.typeDefinitions) {
           containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
         }
       }
@@ -173,70 +173,70 @@ export class BeeSon<T extends JsonValue> {
       return flattenBytesArray(containerBytes)
     }
 
-    return new Uint8Array([...abiBytes, ...this.serializeData()])
+    return new Uint8Array([...dnaBytes, ...this.serializeData()])
   }
 
   /** deserialise unpacked data */
   public static deserialize(data: Uint8Array, header?: Header<Type>): BeeSon<JsonValue> {
-    const { abiManager, processedBytes } = AbiManager.spawn(data, header)
-    const beeSon = new BeeSon({ abiManager })
+    const { dnaManager, processedBytes } = DnaManager.spawn(data, header)
+    const beeSon = new BeeSon({ dnaManager: dnaManager })
     beeSon.deserializeData(data.slice(processedBytes))
 
     return beeSon
   }
 
-  private serializeAbi(withoutBlobHeader: boolean): Uint8Array {
-    return this._abiManager.dna(withoutBlobHeader)
+  private serializeDna(withoutBlobHeader: boolean): Uint8Array {
+    return this._dnaManager.dna(withoutBlobHeader)
   }
 
   public deserializeData(data: Uint8Array): void {
     const decryptedData = new Uint8Array([...data])
-    encryptDecrypt(this._abiManager.obfuscationKey, decryptedData)
+    encryptDecrypt(this._dnaManager.obfuscationKey, decryptedData)
     // numbers
-    if (isAbiManagerType(this._abiManager, Type.float32)) {
+    if (isDnaManagerType(this._dnaManager, Type.float32)) {
       this.json = deserializeFloat(
-        this._abiManager.type as Type.float32,
+        this._dnaManager.type as Type.float32,
         decryptedData.slice(SEGMENT_SIZE - 4) as Bytes<4>,
       ) as T
-    } else if (isAbiManagerType(this._abiManager, Type.float64)) {
+    } else if (isDnaManagerType(this._dnaManager, Type.float64)) {
       this.json = deserializeFloat(
-        this._abiManager.type as Type.float64,
+        this._dnaManager.type as Type.float64,
         decryptedData.slice(SEGMENT_SIZE - 8) as Bytes<8>,
       ) as T
     } else if (
-      isAbiManagerType(this._abiManager, Type.int8) ||
-      isAbiManagerType(this._abiManager, Type.uint8)
+      isDnaManagerType(this._dnaManager, Type.int8) ||
+      isDnaManagerType(this._dnaManager, Type.uint8)
     ) {
-      this.json = deserializeInt(this._abiManager.type, decryptedData.slice(SEGMENT_SIZE - 1)) as T
-    } else if (isAbiManagerType(this._abiManager, Type.int16)) {
-      this.json = deserializeInt(this._abiManager.type, decryptedData.slice(SEGMENT_SIZE - 2)) as T
-    } else if (isAbiManagerType(this._abiManager, Type.int32)) {
-      this.json = deserializeInt(this._abiManager.type, decryptedData.slice(SEGMENT_SIZE - 4)) as T
-    } else if (isAbiManagerType(this._abiManager, Type.int64)) {
-      this.json = deserializeInt(this._abiManager.type, decryptedData.slice(SEGMENT_SIZE - 8)) as T
+      this.json = deserializeInt(this._dnaManager.type, decryptedData.slice(SEGMENT_SIZE - 1)) as T
+    } else if (isDnaManagerType(this._dnaManager, Type.int16)) {
+      this.json = deserializeInt(this._dnaManager.type, decryptedData.slice(SEGMENT_SIZE - 2)) as T
+    } else if (isDnaManagerType(this._dnaManager, Type.int32)) {
+      this.json = deserializeInt(this._dnaManager.type, decryptedData.slice(SEGMENT_SIZE - 4)) as T
+    } else if (isDnaManagerType(this._dnaManager, Type.int64)) {
+      this.json = deserializeInt(this._dnaManager.type, decryptedData.slice(SEGMENT_SIZE - 8)) as T
     }
     // string
-    else if (isAbiManagerType(this._abiManager, Type.string)) {
+    else if (isDnaManagerType(this._dnaManager, Type.string)) {
       this.json = deserializeString(decryptedData) as T
     }
     // boolean
-    else if (isAbiManagerType(this._abiManager, Type.boolean)) {
+    else if (isDnaManagerType(this._dnaManager, Type.boolean)) {
       this.json = deserializeBoolean(decryptedData.slice(SEGMENT_SIZE - 1) as Bytes<1>) as T
     }
     // misc types
-    else if (isAbiManagerType(this._abiManager, Type.swarmCac)) {
+    else if (isDnaManagerType(this._dnaManager, Type.swarmCac)) {
       this.json = deserializeSwarmCac(decryptedData) as T
-    } else if (isAbiManagerType(this._abiManager, Type.swarmSoc)) {
+    } else if (isDnaManagerType(this._dnaManager, Type.swarmSoc)) {
       this.json = deserializeSwarmSoc(decryptedData) as T
     }
     // container types
-    else if (isAbiManagerType(this._abiManager, Type.object)) {
+    else if (isDnaManagerType(this._dnaManager, Type.object)) {
       this.deserializeObject(decryptedData)
-    } else if (isAbiManagerType(this._abiManager, Type.array)) {
+    } else if (isDnaManagerType(this._dnaManager, Type.array)) {
       this.deserializeArray(decryptedData)
-    } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
+    } else if (isDnaManagerType(this._dnaManager, Type.nullableArray)) {
       this.deserializeNullableArray(decryptedData)
-    } else if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
+    } else if (isDnaManagerType(this._dnaManager, Type.nullableObject)) {
       this.deserializeNullableObject(decryptedData)
     }
   }
@@ -252,80 +252,80 @@ export class BeeSon<T extends JsonValue> {
     // numbers
     if (isBeeSonType(this, Type.float32)) {
       const bytes = segmentPaddingFromLeft(serializeFloat(this._json, Type.float32))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.float64)) {
       const bytes = segmentPaddingFromLeft(serializeFloat(this._json, Type.float64))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.int8)) {
       const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int8))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.uint8)) {
       const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.uint8))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.int16)) {
       const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int16))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.int32)) {
       const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int32))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.int64)) {
       const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int64))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     // string
     if (isBeeSonType(this, Type.string)) {
       const bytes = segmentPaddingFromRight(serializeString(this._json))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     // boolean
     if (isBeeSonType(this, Type.boolean)) {
       const bytes = segmentPaddingFromRight(serializeBoolean(this._json))
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     // misc types
     if (isBeeSonType(this, Type.swarmCac)) {
       const bytes = serializeSwarmCac(this._json as SwarmManifestCid)
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     if (isBeeSonType(this, Type.swarmSoc)) {
       const bytes = serializeSwarmSoc(this.json as SwarmFeedCid)
-      encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+      encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
       return bytes
     }
     // container types
-    if (isAbiManagerType(this._abiManager, Type.object) || isAbiManagerType(this._abiManager, Type.array)) {
+    if (isDnaManagerType(this._dnaManager, Type.object) || isDnaManagerType(this._dnaManager, Type.array)) {
       return this.serializeContainerElementsData()
     }
     if (
-      isAbiManagerType(this._abiManager, Type.nullableObject) ||
-      isAbiManagerType(this._abiManager, Type.nullableArray)
+      isDnaManagerType(this._dnaManager, Type.nullableObject) ||
+      isDnaManagerType(this._dnaManager, Type.nullableArray)
     ) {
       return new Uint8Array([
         ...this.serializeContainerElementsNulls(),
@@ -333,42 +333,42 @@ export class BeeSon<T extends JsonValue> {
       ])
     }
 
-    throw new NotSupportedTypeError(this.abiManager.type)
+    throw new NotSupportedTypeError(this.dnaManager.type)
   }
 
   public setIndexNullable(index: keyof T, nullable: boolean) {
-    if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
-      for (const [typeDefIndex, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+    if (isDnaManagerType(this._dnaManager, Type.nullableObject)) {
+      for (const [typeDefIndex, typeDefinition] of this._dnaManager.typeDefinitions.entries()) {
         const typeDef = typeDefinition as TypeDefinitionO
         if (typeDef.marker === index) {
-          return this._abiManager.setTypeDefinitionNullable(typeDefIndex, nullable)
+          return this._dnaManager.setTypeDefinitionNullable(typeDefIndex, nullable)
         }
       }
 
       throw new Error(`Index "${index} has been not found"`)
-    } else if (isAbiManagerType(this._abiManager, Type.nullableArray)) {
-      return this._abiManager.setTypeDefinitionNullable(index as number, nullable)
+    } else if (isDnaManagerType(this._dnaManager, Type.nullableArray)) {
+      return this._dnaManager.setTypeDefinitionNullable(index as number, nullable)
     }
-    throw new Error(`BeeSon object is not a nullable container type. It has type: ${this._abiManager.type}`)
+    throw new Error(`BeeSon object is not a nullable container type. It has type: ${this._dnaManager.type}`)
   }
 
   private serializeContainerElementsData(): Uint8Array {
     if (
-      !isAbiManagerType(this._abiManager, Type.object) &&
-      !isAbiManagerType(this._abiManager, Type.array) &&
-      !isAbiManagerType(this._abiManager, Type.nullableArray) &&
-      !isAbiManagerType(this._abiManager, Type.nullableObject)
+      !isDnaManagerType(this._dnaManager, Type.object) &&
+      !isDnaManagerType(this._dnaManager, Type.array) &&
+      !isDnaManagerType(this._dnaManager, Type.nullableArray) &&
+      !isDnaManagerType(this._dnaManager, Type.nullableObject)
     ) {
-      throw new Error(`BeeSon is not a (nullable) container type. it has type: ${this.abiManager.type}`)
+      throw new Error(`BeeSon is not a (nullable) container type. it has type: ${this.dnaManager.type}`)
     }
     const objectValuesBytes: Uint8Array[] = []
-    for (const typeDefinition of this._abiManager.typeDefinitions) {
+    for (const typeDefinition of this._dnaManager.typeDefinitions) {
       objectValuesBytes.push(typeDefinition.beeSon.serialize({ withoutBlobHeader: true }))
     }
 
     // objectValuesBytes already 32 bytes padded
     const bytes = flattenBytesArray(objectValuesBytes)
-    encryptDecrypt(this._abiManager.obfuscationKey, bytes)
+    encryptDecrypt(this._dnaManager.obfuscationKey, bytes)
 
     return bytes
   }
@@ -376,16 +376,16 @@ export class BeeSon<T extends JsonValue> {
   /** Serialize Null bitvector for nullable containers in the data implementation */
   private serializeContainerElementsNulls(): Uint8Array {
     if (
-      !isAbiManagerType(this._abiManager, Type.nullableArray) &&
-      !isAbiManagerType(this._abiManager, Type.nullableObject)
+      !isDnaManagerType(this._dnaManager, Type.nullableArray) &&
+      !isDnaManagerType(this._dnaManager, Type.nullableObject)
     ) {
-      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.abiManager.type}`)
+      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.dnaManager.type}`)
     }
 
     // const
-    const bv = new BitVector(this._abiManager.typeDefinitions.length)
-    if (isAbiManagerType(this._abiManager, Type.nullableObject)) {
-      for (const [index, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+    const bv = new BitVector(this._dnaManager.typeDefinitions.length)
+    if (isDnaManagerType(this._dnaManager, Type.nullableObject)) {
+      for (const [index, typeDefinition] of this._dnaManager.typeDefinitions.entries()) {
         const typeDef = typeDefinition as TypeDefinitionO
         if ((this._json as Record<string, unknown>)[typeDef.marker] === null) {
           bv.setBit(index)
@@ -393,7 +393,7 @@ export class BeeSon<T extends JsonValue> {
       }
     } else {
       // it is nullableArray
-      for (const [index] of this._abiManager.typeDefinitions.entries()) {
+      for (const [index] of this._dnaManager.typeDefinitions.entries()) {
         if ((this._json as unknown[])[index] === null) {
           bv.setBit(index)
         }
@@ -401,7 +401,7 @@ export class BeeSon<T extends JsonValue> {
     }
 
     const vektorSegments = segmentPaddingFromRight(bv.bitVector)
-    encryptDecrypt(this._abiManager.obfuscationKey, vektorSegments)
+    encryptDecrypt(this._dnaManager.obfuscationKey, vektorSegments)
 
     return vektorSegments
   }
@@ -409,32 +409,32 @@ export class BeeSon<T extends JsonValue> {
   /** Deserialize Null bitvector for nullable containers in the data implementation */
   private deserializeContainerElementsNulls(bitVectorSegments: Uint8Array): BitVector {
     if (
-      !isAbiManagerType(this._abiManager, Type.nullableArray) &&
-      !isAbiManagerType(this._abiManager, Type.nullableObject)
+      !isDnaManagerType(this._dnaManager, Type.nullableArray) &&
+      !isDnaManagerType(this._dnaManager, Type.nullableObject)
     ) {
-      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.abiManager.type}`)
+      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.dnaManager.type}`)
     }
 
-    const bitVectorBytes = bitVectorSegments.slice(0, Math.ceil(this._abiManager.typeDefinitions.length / 8))
+    const bitVectorBytes = bitVectorSegments.slice(0, Math.ceil(this._dnaManager.typeDefinitions.length / 8))
 
-    return new BitVector(this._abiManager.typeDefinitions.length, bitVectorBytes)
+    return new BitVector(this._dnaManager.typeDefinitions.length, bitVectorBytes)
   }
 
   private deserializeObject(data: Uint8Array) {
-    if (!isAbiManagerType(this._abiManager, Type.object)) throw new Error(`ABI type is not a ${Type.object}`)
+    if (!isDnaManagerType(this._dnaManager, Type.object)) throw new Error(`DNA type is not a ${Type.object}`)
     const obj: Record<string, unknown> = {}
     let segmentOffset = 0
-    for (const typeDefinition of this._abiManager.typeDefinitions) {
+    for (const typeDefinition of this._dnaManager.typeDefinitions) {
       const typeDef = typeDefinition as TypeDefinitionO
       const key = typeDef.marker
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+      if (isContainerType(typeDef.beeSon.dnaManager.type)) {
         typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
-          // abimanager type/obfuscationkey and else is set already on abi deserialisation
-          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-          type: typeDef.beeSon.abiManager.type,
-          version: typeDef.beeSon.abiManager.version,
+          // dnamanager type/obfuscationkey and else is set already on dna deserialisation
+          obfuscationKey: typeDef.beeSon.dnaManager.obfuscationKey,
+          type: typeDef.beeSon.dnaManager.type,
+          version: typeDef.beeSon.dnaManager.version,
         })
         obj[key] = typeDef.beeSon.json
       } else {
@@ -447,13 +447,13 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private deserializeNullableObject(data: Uint8Array) {
-    if (!isAbiManagerType(this._abiManager, Type.nullableObject)) {
-      throw new Error(`ABI type is not a ${Type.object}`)
+    if (!isDnaManagerType(this._dnaManager, Type.nullableObject)) {
+      throw new Error(`DNA type is not a ${Type.object}`)
     }
     const obj: Record<string, unknown> = {}
-    let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
+    let segmentOffset = segmentSize(Math.ceil(this._dnaManager.typeDefinitions.length / 8))
     const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
-    for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+    for (const [i, typeDefinition] of this._dnaManager.typeDefinitions.entries()) {
       const typeDef = typeDefinition as TypeDefinitionO
       const key = typeDef.marker
       if (bitVector.getBit(i)) {
@@ -464,12 +464,12 @@ export class BeeSon<T extends JsonValue> {
       }
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+      if (isContainerType(typeDef.beeSon.dnaManager.type)) {
         typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
-          // abimanager type/obfuscationkey and else is set already on abi deserialisation
-          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-          type: typeDef.beeSon.abiManager.type,
-          version: typeDef.beeSon.abiManager.version,
+          // dnamanager type/obfuscationkey and else is set already on dna deserialisation
+          obfuscationKey: typeDef.beeSon.dnaManager.obfuscationKey,
+          type: typeDef.beeSon.dnaManager.type,
+          version: typeDef.beeSon.dnaManager.version,
         })
         obj[key] = typeDef.beeSon.json
       } else {
@@ -482,13 +482,13 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private deserializeNullableArray(data: Uint8Array) {
-    if (!isAbiManagerType(this._abiManager, Type.nullableArray)) {
-      throw new Error(`ABI type is not a ${Type.object}`)
+    if (!isDnaManagerType(this._dnaManager, Type.nullableArray)) {
+      throw new Error(`DNA type is not a ${Type.object}`)
     }
     const arr: unknown[] = []
-    let segmentOffset = segmentSize(Math.ceil(this._abiManager.typeDefinitions.length / 8))
+    let segmentOffset = segmentSize(Math.ceil(this._dnaManager.typeDefinitions.length / 8))
     const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
-    for (const [i, typeDefinition] of this._abiManager.typeDefinitions.entries()) {
+    for (const [i, typeDefinition] of this._dnaManager.typeDefinitions.entries()) {
       if (bitVector.getBit(i)) {
         typeDefinition.beeSon.json = null
         arr.push(typeDefinition.beeSon.json)
@@ -499,12 +499,12 @@ export class BeeSon<T extends JsonValue> {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+      if (isContainerType(typeDef.beeSon.dnaManager.type)) {
         typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
-          // abimanager type/obfuscationkey and else is set already on abi deserialisation
-          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-          type: typeDef.beeSon.abiManager.type,
-          version: typeDef.beeSon.abiManager.version,
+          // dnamanager type/obfuscationkey and else is set already on dna deserialisation
+          obfuscationKey: typeDef.beeSon.dnaManager.obfuscationKey,
+          type: typeDef.beeSon.dnaManager.type,
+          version: typeDef.beeSon.dnaManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
@@ -517,21 +517,21 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private deserializeArray(data: Uint8Array) {
-    if (!isAbiManagerType(this._abiManager, Type.array)) {
-      throw new Error(`ABI type is not a ${Type.object}`)
+    if (!isDnaManagerType(this._dnaManager, Type.array)) {
+      throw new Error(`DNA type is not a ${Type.object}`)
     }
     const arr: unknown[] = []
     let segmentOffset = 0
-    for (const typeDefinition of this._abiManager.typeDefinitions) {
+    for (const typeDefinition of this._dnaManager.typeDefinitions) {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.abiManager.type)) {
+      if (isContainerType(typeDef.beeSon.dnaManager.type)) {
         typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
-          // abimanager type/obfuscationkey and else is set already on abi deserialisation
-          obfuscationKey: typeDef.beeSon.abiManager.obfuscationKey,
-          type: typeDef.beeSon.abiManager.type,
-          version: typeDef.beeSon.abiManager.version,
+          // dnamanager type/obfuscationkey and else is set already on dna deserialisation
+          obfuscationKey: typeDef.beeSon.dnaManager.obfuscationKey,
+          type: typeDef.beeSon.dnaManager.type,
+          version: typeDef.beeSon.dnaManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
@@ -544,8 +544,8 @@ export class BeeSon<T extends JsonValue> {
   }
 
   public getNullableContainer(): NullableContainerBeeSon<T> {
-    const abiManager = this._abiManager.getNullableContainerAbiManager()
-    const newBeeSon = new BeeSon({ abiManager })
+    const dnaManager = this._dnaManager.getNullableContainerDnaManager()
+    const newBeeSon = new BeeSon({ dnaManager: dnaManager })
     newBeeSon.json = this.json
 
     return newBeeSon as NullableContainerBeeSon<T>

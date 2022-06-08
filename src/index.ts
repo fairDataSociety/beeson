@@ -1,3 +1,3 @@
 export * from './beeson'
-export { AbiManager } from './abi'
+export { DnaManager } from './dna'
 export { Type } from './types'

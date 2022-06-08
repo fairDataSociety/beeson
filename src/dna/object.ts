@@ -1,4 +1,4 @@
-import { AbiManager, Header, TypeDefinitionO } from '.'
+import { DnaManager, Header, TypeDefinitionO } from '.'
 import { BeeSon } from '../beeson'
 import { Type, assertBeeSonType } from '../types'
 import { BitVector } from '../bitvector'
@@ -13,32 +13,32 @@ import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } 
 
 const OBJECT_TYPE_DEF_LENGTH = 7
 
-export function dnaNullableObjectAbi(abi: AbiManager<Type.nullableObject>): Uint8Array {
-  const markers = abi.typeDefinitions.map(typeDef => typeDef.marker)
+export function dnaNullableObject(dna: DnaManager<Type.nullableObject>): Uint8Array {
+  const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
-  const bv = new BitVector(abi.typeDefinitions.length)
+  const bv = new BitVector(dna.typeDefinitions.length)
 
   const serializedTypeDefs: Bytes<7>[] = []
-  for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
+  for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.abiManager.type,
+        typeDefinition.beeSon.dnaManager.type,
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
     )
-    if (typeDefinition.beeSon.abiManager.nullable) {
+    if (typeDefinition.beeSon.dnaManager.nullable) {
       bv.setBit(index)
     }
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  // 6 is the bytes length of the `abiSegmentSize`, `flattenTypeDefs` and the `serializedMarkers.length`
-  const abiSegmentSize = segmentSize(
+  // 6 is the bytes length of the `dnaSegmentSize`, `flattenTypeDefs` and the `serializedMarkers.length`
+  const dnaSegmentSize = segmentSize(
     6 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length + bv.bitVector.length,
   )
 
   const bytes = new Uint8Array([
-    ...serializeUint16(abiSegmentSize),
+    ...serializeUint16(dnaSegmentSize),
     ...serializeUint16(serializedTypeDefs.length),
     ...serializeUint16(serializedMarkers.serializedMarkers.length),
     ...flattenBytesArray(serializedTypeDefs),
@@ -49,14 +49,14 @@ export function dnaNullableObjectAbi(abi: AbiManager<Type.nullableObject>): Uint
   return bytes
 }
 
-export function spawnNullableObjectAbi(
+export function spawnNullableObject(
   data: Uint8Array,
   header: Header<Type.nullableObject>,
-): { abiManager: AbiManager<Type.nullableObject>; abiByteSize: number } {
+): { dnaManager: DnaManager<Type.nullableObject>; dnaByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -69,7 +69,7 @@ export function spawnNullableObjectAbi(
   )
 
   // deserialize typedefs
-  const abiByteSize = abiSegmentSize * 32
+  const dnaByteSize = dnaSegmentSize * 32
   const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
   const typeDefinitions: TypeDefinitionO[] = []
   let i = 0
@@ -87,8 +87,8 @@ export function spawnNullableObjectAbi(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its abi has to be deserialized in a different function call
-      const abiManager = new AbiManager(
+      // if deserialized type is container type, then its dna has to be deserialized in a different function call
+      const dnaManager = new DnaManager(
         header.obfuscationKey,
         header.version,
         type,
@@ -97,7 +97,7 @@ export function spawnNullableObjectAbi(
       )
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ abiManager }),
+        beeSon: new BeeSon({ dnaManager }),
         marker,
       })
     } catch (e) {
@@ -109,25 +109,25 @@ export function spawnNullableObjectAbi(
   }
 
   return {
-    abiManager: new AbiManager(header.obfuscationKey, header.version, Type.nullableObject, typeDefinitions),
-    abiByteSize,
+    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.nullableObject, typeDefinitions),
+    dnaByteSize,
   }
 }
 
-export function spawnObjectAbi(
+export function spawnObject(
   data: Uint8Array,
   header: Header<Type.object>,
-): { abiManager: AbiManager<Type.object>; abiByteSize: number } {
+): { dnaManager: DnaManager<Type.object>; dnaByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const abiSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
 
   // deserialize typedefs
-  const abiByteSize = abiSegmentSize * 32
+  const dnaByteSize = dnaSegmentSize * 32
   const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
   const typeDefinitions: TypeDefinitionO[] = []
   let markerOffset = 0
@@ -144,11 +144,11 @@ export function spawnObjectAbi(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its abi has to be deserialized in a different function call
-      const abiManager = new AbiManager(header.obfuscationKey, header.version, type, null)
+      // if deserialized type is container type, then its dna has to be deserialized in a different function call
+      const dnaManager = new DnaManager(header.obfuscationKey, header.version, type, null)
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ abiManager }),
+        beeSon: new BeeSon({ dnaManager }),
         marker,
       })
     } catch (e) {
@@ -159,31 +159,31 @@ export function spawnObjectAbi(
   }
 
   return {
-    abiManager: new AbiManager(header.obfuscationKey, header.version, Type.object, typeDefinitions),
-    abiByteSize,
+    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.object, typeDefinitions),
+    dnaByteSize,
   }
 }
 
-export function dnaObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
-  const markers = abi.typeDefinitions.map(typeDef => typeDef.marker)
+export function dnaObject(dna: DnaManager<Type.object>): Uint8Array {
+  const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
 
   const serializedTypeDefs: Bytes<7>[] = []
-  for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
+  for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.abiManager.type,
+        typeDefinition.beeSon.dnaManager.type,
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
     )
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  // 4 is the bytes length of the `abiSegmentSize` and `flattenTypeDefs
-  const abiSegmentSize = segmentSize(4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length)
+  // 4 is the bytes length of the `dnaSegmentSize` and `flattenTypeDefs
+  const dnaSegmentSize = segmentSize(4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length)
 
   const bytes = new Uint8Array([
-    ...serializeUint16(abiSegmentSize),
+    ...serializeUint16(dnaSegmentSize),
     ...serializeUint16(serializedTypeDefs.length),
     ...flattenBytesArray(serializedTypeDefs),
     ...serializedMarkers.serializedMarkers,

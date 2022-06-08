@@ -26,8 +26,8 @@ import {
   isSwarmFeedCid,
   isSwarmManifestCid,
 } from '../marshalling/address-serializer'
-import { spawnArrayAbi, spawnNullableArrayAbi, dnaArrayAbi, dnaNullableArrayAbi } from './array'
-import { spawnNullableObjectAbi, spawnObjectAbi, dnaNullableObjectAbi, dnaObjectAbi } from './object'
+import { spawnArray, spawnNullableArray, dnaArray, dnaNullableArray } from './array'
+import { spawnNullableObject, spawnObject, dnaNullableObject, dnaObject } from './object'
 
 export const HEADER_BYTE_LENGTH = 64
 
@@ -47,7 +47,7 @@ export interface TypeDefinitionO extends TypeDefinitionA {
 
 interface ChildA {
   segmentLength: number
-  abi: AbiObject<Type>
+  dna: DnaObject<Type>
 }
 
 interface ChildANullable extends ChildA {
@@ -62,7 +62,7 @@ interface ChildONullable extends ChildO {
   nullable: boolean
 }
 
-type AbiChildren<T extends Type> = T extends Type.array
+type DnaChildren<T extends Type> = T extends Type.array
   ? ChildA[]
   : T extends Type.nullableArray
   ? ChildANullable[]
@@ -72,21 +72,21 @@ type AbiChildren<T extends Type> = T extends Type.array
   ? ChildONullable[]
   : undefined
 
-interface AbiObject<T extends Type> {
+interface DnaObject<T extends Type> {
   type: T
-  children: AbiChildren<T>
+  children: DnaChildren<T>
 }
 
-interface AbiRootObject<T extends Type> extends AbiObject<T> {
+interface DnaRootObject<T extends Type> extends DnaObject<T> {
   obfuscationKey: Bytes<32>
   version: Version
 }
 
-function isAbiObjectType<T extends Type>(abiObject: AbiObject<Type>, type: T): abiObject is AbiObject<T> {
-  return abiObject.type === type
+function isDnaObjectType<T extends Type>(dnaObject: DnaObject<Type>, type: T): dnaObject is DnaObject<T> {
+  return dnaObject.type === type
 }
 
-export interface Abi<T extends Type = Type> {
+export interface Dna<T extends Type = Type> {
   obfuscationKey: Bytes<32>
   version: Version
   type: T
@@ -110,13 +110,13 @@ type TypeDefinitions<T extends Type> = T extends Type.array | Type.nullableArray
   ? TypeDefinitionO[]
   : null
 
-type NullableContainerAbiManager<T extends Type> = T extends Type.array
-  ? AbiManager<Type.nullableArray>
+type NullableContainerDnaManager<T extends Type> = T extends Type.array
+  ? DnaManager<Type.nullableArray>
   : T extends Type.object
-  ? AbiManager<Type.nullableObject>
+  ? DnaManager<Type.nullableObject>
   : never
 
-export class AbiManager<T extends Type> {
+export class DnaManager<T extends Type> {
   constructor(
     public obfuscationKey: Bytes<32>,
     private _version: Version,
@@ -139,54 +139,54 @@ export class AbiManager<T extends Type> {
   }
 
   /**
-   * Asserts whether the given JsonValue satisfies its corresponding ABI
+   * Asserts whether the given JsonValue satisfies its corresponding DNA
    * Container typed values have shallow assertion as their elements will have own BeeSon object anyway.
    */
   // eslint-disable-next-line complexity
   public assertJsonValue(value: unknown): asserts value is JsonValue {
     if (this.nullable && isNull(value)) return
-    if (isAbiManagerType(this, Type.swarmCac)) {
+    if (isDnaManagerType(this, Type.swarmCac)) {
       return assertSwarmManifestCid(value)
     }
-    if (isAbiManagerType(this, Type.swarmSoc)) {
+    if (isDnaManagerType(this, Type.swarmSoc)) {
       return assertSwarmFeedCid(value)
     }
-    if (isAbiManagerType(this, Type.float32) || isAbiManagerType(this, Type.float64)) {
+    if (isDnaManagerType(this, Type.float32) || isDnaManagerType(this, Type.float64)) {
       return assertNumber(value)
     }
     if (
-      isAbiManagerType(this, Type.uint8) ||
-      isAbiManagerType(this, Type.int8) ||
-      isAbiManagerType(this, Type.int16) ||
-      isAbiManagerType(this, Type.int32)
+      isDnaManagerType(this, Type.uint8) ||
+      isDnaManagerType(this, Type.int8) ||
+      isDnaManagerType(this, Type.int16) ||
+      isDnaManagerType(this, Type.int32)
     ) {
       return assertInteger(value)
     }
-    if (isAbiManagerType(this, Type.int64)) {
+    if (isDnaManagerType(this, Type.int64)) {
       return assertBigInt(value)
     }
-    if (isAbiManagerType(this, Type.string)) {
+    if (isDnaManagerType(this, Type.string)) {
       return assertString(value)
     }
-    if (isAbiManagerType(this, Type.array) || isAbiManagerType(this, Type.nullableArray)) {
+    if (isDnaManagerType(this, Type.array) || isDnaManagerType(this, Type.nullableArray)) {
       assertArray(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionA[]
       if (value.length !== typeDefs.length) {
         throw new Error(
-          `Given JSON array has ${value.length} length, when the abi defines ${typeDefs.length} length`,
+          `Given JSON array has ${value.length} length, when the dna defines ${typeDefs.length} length`,
         )
       }
 
       return
     }
-    if (isAbiManagerType(this, Type.object) || isAbiManagerType(this, Type.nullableObject)) {
+    if (isDnaManagerType(this, Type.object) || isDnaManagerType(this, Type.nullableObject)) {
       assertObject(value)
       const objectKeys = Object.keys(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionO[]
       if (objectKeys.length !== typeDefs.length) {
         const typeDefKeys = typeDefs.map(def => def.marker)
         throw new Error(
-          `Given JSON object has ${objectKeys.length} key length, when the abi defines ${
+          `Given JSON object has ${objectKeys.length} key length, when the dna defines ${
             typeDefs.length
           } length.\n\tMissing keys: ${typeDefKeys.filter(k => !objectKeys.includes(k))}`,
         )
@@ -199,89 +199,89 @@ export class AbiManager<T extends Type> {
 
       return
     }
-    if (isAbiManagerType(this, Type.boolean)) {
+    if (isDnaManagerType(this, Type.boolean)) {
       return assertBoolean(value)
     }
-    if (isAbiManagerType(this, Type.null)) {
+    if (isDnaManagerType(this, Type.null)) {
       return assertNull(value)
     }
 
-    throw new Error(`ABI assertion problem at value "${value}". There is no corresponding check`)
+    throw new Error(`DNA assertion problem at value "${value}". There is no corresponding check`)
   }
 
-  public getAbiObject(): AbiObject<T> {
-    if (isAbiManagerType(this, Type.array)) {
+  public getDnaObject(): DnaObject<T> {
+    if (isDnaManagerType(this, Type.array)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            abi: typeDef.beeSon.abiManager.getAbiObject(),
+            dna: typeDef.beeSon.dnaManager.getDnaObject(),
           }
-        }) as AbiChildren<T>,
+        }) as DnaChildren<T>,
       }
-    } else if (isAbiManagerType(this, Type.nullableArray)) {
+    } else if (isDnaManagerType(this, Type.nullableArray)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            abi: typeDef.beeSon.abiManager.getAbiObject(),
-            nullable: typeDef.beeSon.abiManager.nullable,
+            dna: typeDef.beeSon.dnaManager.getDnaObject(),
+            nullable: typeDef.beeSon.dnaManager.nullable,
           }
-        }) as AbiChildren<T>,
+        }) as DnaChildren<T>,
       }
-    } else if (isAbiManagerType(this, Type.nullableObject)) {
+    } else if (isDnaManagerType(this, Type.nullableObject)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            abi: typeDef.beeSon.abiManager.getAbiObject(),
-            nullable: typeDef.beeSon.abiManager.nullable,
+            dna: typeDef.beeSon.dnaManager.getDnaObject(),
+            nullable: typeDef.beeSon.dnaManager.nullable,
             marker: typeDef.marker,
           }
-        }) as AbiChildren<T>,
+        }) as DnaChildren<T>,
       }
-    } else if (isAbiManagerType(this, Type.object)) {
+    } else if (isDnaManagerType(this, Type.object)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            abi: typeDef.beeSon.abiManager.getAbiObject(),
+            dna: typeDef.beeSon.dnaManager.getDnaObject(),
             marker: typeDef.marker,
           }
-        }) as AbiChildren<T>,
+        }) as DnaChildren<T>,
       }
     }
 
     return {
       type: this._type,
-      children: undefined as AbiChildren<T>,
+      children: undefined as DnaChildren<T>,
     }
   }
 
   /** `withoutBlobHeader` used mainly at container types */
   public dna(withoutBlobHeader = false): Uint8Array {
     const header = withoutBlobHeader ? new Uint8Array() : this.dnaHeader()
-    let abi: Uint8Array
+    let dna: Uint8Array
 
-    if (isAbiManagerType(this, Type.array)) {
-      abi = dnaArrayAbi(this as AbiManager<Type.array>)
+    if (isDnaManagerType(this, Type.array)) {
+      dna = dnaArray(this as DnaManager<Type.array>)
     } else if (this._type === Type.object) {
-      abi = dnaObjectAbi(this as AbiManager<Type.object>)
+      dna = dnaObject(this as DnaManager<Type.object>)
     } else if (this._type === Type.nullableArray) {
-      abi = dnaNullableArrayAbi(this as AbiManager<Type.nullableArray>)
+      dna = dnaNullableArray(this as DnaManager<Type.nullableArray>)
     } else if (this._type === Type.nullableObject) {
-      abi = dnaNullableObjectAbi(this as AbiManager<Type.nullableObject>)
+      dna = dnaNullableObject(this as DnaManager<Type.nullableObject>)
     } else {
       return header // no padding required
     }
-    abi = segmentPaddingFromRight(abi)
-    encryptDecrypt(this.obfuscationKey, abi)
+    dna = segmentPaddingFromRight(dna)
+    encryptDecrypt(this.obfuscationKey, dna)
 
-    return new Uint8Array([...header, ...abi])
+    return new Uint8Array([...header, ...dna])
   }
 
   public dnaHeader(): Bytes<64> {
@@ -294,47 +294,47 @@ export class AbiManager<T extends Type> {
   public static spawn<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
-  ): { abiManager: AbiManager<T>; processedBytes: number } {
+  ): { dnaManager: DnaManager<T>; processedBytes: number } {
     let processedBytes = 0
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
-      header = AbiManager.spawnHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
+      header = DnaManager.spawnHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
       data = data.slice(64)
       processedBytes = 64
     }
 
     if (isHeaderType(header!, Type.array)) {
-      const { abiManager, abiByteSize } = spawnArrayAbi(data, header)
+      const { dnaManager, dnaByteSize } = spawnArray(data, header)
 
       return {
-        abiManager: abiManager as AbiManager<T>,
-        processedBytes: processedBytes + abiByteSize,
+        dnaManager: dnaManager as DnaManager<T>,
+        processedBytes: processedBytes + dnaByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { abiManager, abiByteSize } = spawnObjectAbi(data, header)
+      const { dnaManager, dnaByteSize } = spawnObject(data, header)
 
       return {
-        abiManager: abiManager as AbiManager<T>,
-        processedBytes: processedBytes + abiByteSize,
+        dnaManager: dnaManager as DnaManager<T>,
+        processedBytes: processedBytes + dnaByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableArray)) {
-      const { abiManager, abiByteSize } = spawnNullableArrayAbi(data, header)
+      const { dnaManager, dnaByteSize } = spawnNullableArray(data, header)
 
       return {
-        abiManager: abiManager as AbiManager<T>,
-        processedBytes: processedBytes + abiByteSize,
+        dnaManager: dnaManager as DnaManager<T>,
+        processedBytes: processedBytes + dnaByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { abiManager, abiByteSize } = spawnNullableObjectAbi(data, header)
+      const { dnaManager, dnaByteSize } = spawnNullableObject(data, header)
 
       return {
-        abiManager: abiManager as AbiManager<T>,
-        processedBytes: processedBytes + abiByteSize,
+        dnaManager: dnaManager as DnaManager<T>,
+        processedBytes: processedBytes + dnaByteSize,
       }
     }
 
     return {
-      abiManager: new AbiManager(
+      dnaManager: new DnaManager(
         header.obfuscationKey,
         header.version,
         header.type,
@@ -366,142 +366,142 @@ export class AbiManager<T extends Type> {
     }
   }
 
-  public static loadAbiRootObject<T extends Type>(abi: AbiRootObject<T>): AbiManager<T> {
-    return AbiManager.loadAbiObject(abi, abi.obfuscationKey, abi.version)
+  public static loadDnaRootObject<T extends Type>(dna: DnaRootObject<T>): DnaManager<T> {
+    return DnaManager.loadDnaObject(dna, dna.obfuscationKey, dna.version)
   }
 
-  public static loadAbiObject<T extends Type>(
-    abi: AbiObject<T>,
+  public static loadDnaObject<T extends Type>(
+    dna: DnaObject<T>,
     obfuscationKey: Bytes<32> = new Bytes(32),
     version = Version.unpackedV0_1,
     nullable = false,
-  ): AbiManager<T> {
+  ): DnaManager<T> {
     assertObfuscationKey(obfuscationKey)
     assertVersion(version)
 
-    if (isAbiObjectType(abi, Type.array)) {
-      const typeDefinitions: TypeDefinitionA[] = abi.children.map(child => {
+    if (isDnaObjectType(dna, Type.array)) {
+      const typeDefinitions: TypeDefinitionA[] = dna.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            abiManager: AbiManager.loadAbiObject(child.abi, obfuscationKey, version) as AbiManager<any>,
+            dnaManager: DnaManager.loadDnaObject(child.dna, obfuscationKey, version) as DnaManager<any>,
             obfuscationKey,
           }),
         }
       })
 
-      return new AbiManager(obfuscationKey, version, Type.array, typeDefinitions, nullable) as AbiManager<T>
-    } else if (isAbiObjectType(abi, Type.nullableArray)) {
-      const typeDefinitions: TypeDefinitionA[] = abi.children.map(child => {
+      return new DnaManager(obfuscationKey, version, Type.array, typeDefinitions, nullable) as DnaManager<T>
+    } else if (isDnaObjectType(dna, Type.nullableArray)) {
+      const typeDefinitions: TypeDefinitionA[] = dna.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            abiManager: AbiManager.loadAbiObject(
-              child.abi,
+            dnaManager: DnaManager.loadDnaObject(
+              child.dna,
               obfuscationKey,
               version,
               child.nullable,
-            ) as AbiManager<any>,
+            ) as DnaManager<any>,
             obfuscationKey,
           }),
         }
       })
 
-      return new AbiManager(
+      return new DnaManager(
         obfuscationKey,
         version,
         Type.nullableArray,
         typeDefinitions,
         nullable,
-      ) as AbiManager<T>
-    } else if (isAbiObjectType(abi, Type.object)) {
-      const typeDefinitions: TypeDefinitionO[] = abi.children.map(child => {
+      ) as DnaManager<T>
+    } else if (isDnaObjectType(dna, Type.object)) {
+      const typeDefinitions: TypeDefinitionO[] = dna.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            abiManager: AbiManager.loadAbiObject(child.abi, obfuscationKey, version) as AbiManager<any>,
+            dnaManager: DnaManager.loadDnaObject(child.dna, obfuscationKey, version) as DnaManager<any>,
             obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
-      return new AbiManager(obfuscationKey, version, Type.object, typeDefinitions, nullable) as AbiManager<T>
-    } else if (isAbiObjectType(abi, Type.nullableObject)) {
-      const typeDefinitions: TypeDefinitionO[] = abi.children.map(child => {
+      return new DnaManager(obfuscationKey, version, Type.object, typeDefinitions, nullable) as DnaManager<T>
+    } else if (isDnaObjectType(dna, Type.nullableObject)) {
+      const typeDefinitions: TypeDefinitionO[] = dna.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            abiManager: AbiManager.loadAbiObject(
-              child.abi,
+            dnaManager: DnaManager.loadDnaObject(
+              child.dna,
               obfuscationKey,
               version,
               child.nullable,
-            ) as AbiManager<any>,
+            ) as DnaManager<any>,
             obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
-      return new AbiManager(
+      return new DnaManager(
         obfuscationKey,
         version,
         Type.nullableObject,
         typeDefinitions,
         nullable,
-      ) as AbiManager<T>
+      ) as DnaManager<T>
     }
 
-    return new AbiManager(obfuscationKey, version, abi.type, null as TypeDefinitions<T>, nullable)
+    return new DnaManager(obfuscationKey, version, dna.type, null as TypeDefinitions<T>, nullable)
   }
 
   // mutate methods
 
   /**
    * Set container object element nullable or disallow to be that
-   * @throws if the stored json value of the element has conflict with the nullable abi parameter
-   * | (e.g.) ABI was nullable before and the json value null, and user changes nullable to false
+   * @throws if the stored json value of the element has conflict with the nullable dna parameter
+   * | (e.g.) DNA was nullable before and the json value null, and user changes nullable to false
    */
   public setTypeDefinitionNullable(typeDefIndex: number, nullable: boolean) {
-    if (!this._typeDefinitions) throw new Error(`ABI does not handle a container type`)
-    if (!isAbiManagerType(this, Type.nullableArray) && !isAbiManagerType(this, Type.nullableObject)) {
-      throw new Error(`ABI does not handle nullable container here`)
+    if (!this._typeDefinitions) throw new Error(`DNA does not handle a container type`)
+    if (!isDnaManagerType(this, Type.nullableArray) && !isDnaManagerType(this, Type.nullableObject)) {
+      throw new Error(`DNA does not handle nullable container here`)
     }
     if (!this.typeDefinitions[typeDefIndex]) {
       throw new Error(`there is no typedefintion on index ${typeDefIndex}`)
     }
     const oldBeeSon = this.typeDefinitions[typeDefIndex].beeSon
-    const oldAbiManager = oldBeeSon.abiManager
-    const oldTypeDefs = Array.isArray(oldAbiManager.typeDefinitions)
-      ? [...oldAbiManager.typeDefinitions]
-      : oldAbiManager.typeDefinitions
-    const newAbiManager = new AbiManager(
-      oldAbiManager.obfuscationKey,
-      oldAbiManager.version,
-      oldAbiManager.type,
+    const oldDnaManager = oldBeeSon.dnaManager
+    const oldTypeDefs = Array.isArray(oldDnaManager.typeDefinitions)
+      ? [...oldDnaManager.typeDefinitions]
+      : oldDnaManager.typeDefinitions
+    const newDnaManager = new DnaManager(
+      oldDnaManager.obfuscationKey,
+      oldDnaManager.version,
+      oldDnaManager.type,
       oldTypeDefs,
       nullable,
     )
-    const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+    const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
     newBeeSon.json = oldBeeSon.json
     //overwrite new beeson object for element
     this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
   }
 
-  public getNullableContainerAbiManager(): NullableContainerAbiManager<T> {
-    if (isAbiManagerType(this, Type.array)) {
+  public getNullableContainerDnaManager(): NullableContainerDnaManager<T> {
+    if (isDnaManagerType(this, Type.array)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldAbiManager = oldBeeSon.abiManager
-        const newAbiManager = new AbiManager(
-          oldAbiManager.obfuscationKey,
-          oldAbiManager.version,
-          oldAbiManager.type,
-          oldAbiManager.typeDefinitions,
+        const oldDnaManager = oldBeeSon.dnaManager
+        const newDnaManager = new DnaManager(
+          oldDnaManager.obfuscationKey,
+          oldDnaManager.version,
+          oldDnaManager.type,
+          oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+        const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
         const newTypeDef: TypeDefinitionA = {
           segmentLength: oldTypeDef.segmentLength,
           beeSon: newBeeSon,
@@ -510,25 +510,25 @@ export class AbiManager<T extends Type> {
         return newTypeDef
       })
 
-      return new AbiManager(
+      return new DnaManager(
         this.obfuscationKey,
         this.version,
         Type.nullableArray,
         typeDefinitions,
-      ) as NullableContainerAbiManager<T>
+      ) as NullableContainerDnaManager<T>
     }
-    if (isAbiManagerType(this, Type.object)) {
+    if (isDnaManagerType(this, Type.object)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldAbiManager = oldBeeSon.abiManager
-        const newAbiManager = new AbiManager(
-          oldAbiManager.obfuscationKey,
-          oldAbiManager.version,
-          oldAbiManager.type,
-          oldAbiManager.typeDefinitions,
+        const oldDnaManager = oldBeeSon.dnaManager
+        const newDnaManager = new DnaManager(
+          oldDnaManager.obfuscationKey,
+          oldDnaManager.version,
+          oldDnaManager.type,
+          oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ abiManager: newAbiManager })
+        const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
         const newTypeDef: TypeDefinitionO = {
           ...oldTypeDef,
           beeSon: newBeeSon,
@@ -537,22 +537,22 @@ export class AbiManager<T extends Type> {
         return newTypeDef
       })
 
-      return new AbiManager(
+      return new DnaManager(
         this.obfuscationKey,
         this.version,
         Type.nullableObject,
         typeDefinitions,
-      ) as NullableContainerAbiManager<T>
+      ) as NullableContainerDnaManager<T>
     }
 
-    throw new Error(`This ABI does not represent a nullable container value`)
+    throw new Error(`This DNA does not represent a nullable container value`)
   }
 }
 
-export function generateAbi<T extends JsonValue>(
+export function generateDna<T extends JsonValue>(
   json: T,
   obfuscationKey?: Bytes<32>,
-): AbiManager<ValueType<T>> {
+): DnaManager<ValueType<T>> {
   const type = identifyType(json)
   const version = Version.unpackedV0_1
   obfuscationKey = obfuscationKey || new Bytes(32)
@@ -568,7 +568,7 @@ export function generateAbi<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength })
     }
 
-    return new AbiManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new DnaManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   } else if (type === Type.object) {
     const jsonObject = json as Record<string, unknown>
     const markerArray: string[] = Object.keys(jsonObject).sort()
@@ -582,17 +582,17 @@ export function generateAbi<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength, marker })
     }
 
-    return new AbiManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new DnaManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   }
 
-  return new AbiManager(obfuscationKey, version, type, null as TypeDefinitions<ValueType<T>>)
+  return new DnaManager(obfuscationKey, version, type, null as TypeDefinitions<ValueType<T>>)
 }
 
-export function isAbiManagerType<T extends Type>(
-  abiManager: AbiManager<Type>,
+export function isDnaManagerType<T extends Type>(
+  dnaManager: DnaManager<Type>,
   type: T,
-): abiManager is AbiManager<T> {
-  return abiManager.type === type
+): dnaManager is DnaManager<T> {
+  return dnaManager.type === type
 }
 
 function isHeaderType<T extends Type>(header: Header<Type>, type: T): header is Header<T> {
