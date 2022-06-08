@@ -18,24 +18,24 @@ In JSON, values must be one of the following data types:
 Nonetheless, in byte representation it is required to have more strict types.
 The following types are possible _currently_ to be serialized in BeeSon:
 
-| Type | Value | JSON Type |
-| ---- | ---- | ----------- |
-| null | 0 | null |
-| boolean | 1 | boolean |
-| float32 | 2 | number |
-| float64 | 3 | number |
-| string | 8 | string |
-| uint8 | 16 | number |
-| int8 | 17 | number |
-| int16 | 25 | number |
-| int32 | 29 | number |
-| int64 | 31 | number |
-| array | 32 | array |
-| nullableArray | 33 | array  |
-| object | 64 | object |
-| nullableObject | 65 | object  |
-| swarmCac | 128 | string |
-| swarmSoc | 132 | string |
+| Type | Value | Binary | JSON Type |
+| ---- | ---- | ------- | ----------- |
+| null | 1 | 00000000 00000001 | null |
+| boolean | 2 | 00000000 00000010 | boolean |
+| float32 | 4 | 00000000 00000100 | number |
+| float64 | 5 | 00000000 00000101 | number |
+| string | 8 | 00000000 00001000 | string |
+| uint8 | 64 | 00000000 01000000 | number |
+| int8 | 65 | 00000000 01000001 | number |
+| int16 | 97 | 00000000 01100001 | number |
+| int32 | 113 | 00000000 01110001 | number |
+| int64 | 121 | 00000000 01111001 | number |
+| array | 8192 | 00100000 00000000 | array |
+| nullableArray | 8448 | 00100001 00000000 | array  |
+| object | 16384 | 01000000 00000000 | object |
+| nullableObject | 16640 | 01000001 00000000 | object  |
+| swarmCac | 32768 | 10000000 00000000 | string |
+| swarmSoc | 33024 | 10000001 00000000 | string |
 
 The library defaults the JSON types to the followings:
 * `number` (when it does not have decimal value): `int32`
@@ -43,7 +43,9 @@ The library defaults the JSON types to the followings:
 
 The `swarmCac` and `swarmSoc` are misc types that are deserialized as regexed strings according to the rules of [Swarm CIDs](https://github.com/ethersphere/swarm-cid-js/). Additionally, the serialization can interpret the CID object used in `swarm-cid-js`.
 
-Of course, these defaults can be overridden by using the library's DNA manager. 
+Of course, these defaults can be overridden by using the library's DNA manager.
+
+The type serialization is 2 bytes, but it is extensible until 28 bytes.
 
 
 # Marshalling
@@ -55,14 +57,14 @@ Every BeeSon has to start with a serialised header that consists of
 ┌────────────────────────────────┐
 │    obfuscationKey <32 byte>    │
 ├────────────────────────────────┤
-│      versionHash <31 byte>     │
+│      versionBytes <4 byte>     │
 ├────────────────────────────────┤
-│       blobFlags <1 byte>       │
+│      blobFlags <28 byte>       │
 └────────────────────────────────┘
 ```
 - `obfuscationKey`: random key for encrypted data with which the library will XOR the following data 
-- `versionHash`: keccak256 hash of the string `beeson-{version}-{packed/unpacked}`
-- `blobFlags`: in BeeSon, it is equal to the [Type](#Type) (similarly as in `typeDefinition`)
+- `versionBytes`: the first byte is the data-structure type, for BeeSon this is `1` and the last 3 bytes represent the [semVer](https://semver.org/)
+- `blobFlags`: in BeeSon, its last 2 bytes are equal to the [Type](#Type) (similarly as in `typeDefinition`)
 
 ## Main structure
 
