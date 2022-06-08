@@ -1,4 +1,4 @@
-import { AbiManager, BeeSon, Type } from '../../src'
+import { DnaManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/marshalling/address-serializer'
 import { randomByteArray } from './utils'
@@ -125,7 +125,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.dnaManager.dna()
-    const beeSonManager = AbiManager.spawn(bytes).dnaManager
+    const beeSonManager = DnaManager.spawn(bytes).dnaManager
     expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
@@ -159,7 +159,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.dnaManager.dna()
-    const beeSonManager = AbiManager.spawn(bytes).dnaManager
+    const beeSonManager = DnaManager.spawn(bytes).dnaManager
     expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
@@ -193,7 +193,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.dnaManager.dna()
-    const beeSonManager = AbiManager.spawn(bytes).dnaManager
+    const beeSonManager = DnaManager.spawn(bytes).dnaManager
     expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
@@ -229,7 +229,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.dnaManager.dna()
-    const beeSonManager = AbiManager.spawn(bytes).dnaManager
+    const beeSonManager = DnaManager.spawn(bytes).dnaManager
     expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
