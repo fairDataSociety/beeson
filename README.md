@@ -43,7 +43,7 @@ The library defaults the JSON types to the followings:
 
 The `swarmCac` and `swarmSoc` are misc types that are deserialized as regexed strings according to the rules of [Swarm CIDs](https://github.com/ethersphere/swarm-cid-js/). Additionally, the serialization can interpret the CID object used in `swarm-cid-js`.
 
-Of course, these defaults can be overridden by using the library's ABI manager. 
+Of course, these defaults can be overridden by using the library's DNA manager. 
 
 
 # Marshalling
@@ -70,7 +70,7 @@ Every BeeSon has to start with a serialised header that consists of
 ┌────────────────────────────────┐
 │         Header <64 byte>       │
 ├────────────────────────────────┤
-│ (Application Binary Interface) │
+│             (DNA)              │
 ├────────────────────────────────┤
 │       Data Implementation      │
 └────────────────────────────────┘
@@ -78,12 +78,12 @@ Every BeeSon has to start with a serialised header that consists of
 
 All sections are padded to fit segments (32 bytes), where
 - Header is always present at BeeSon types
-- Application Binary Interface (ABI) is presented at _container types_ and _misc types_. In other cases, it is omitted.
-- Data implementation is the serialized data itself that only stores the value of the data described in the header (and in the ABI).
+- DNA is presented at _container types_ and _misc types_. In other cases, it is omitted.
+- Data implementation is the serialized data itself that only stores the value of the data described in the header (and in the DNA).
 
-The elements of the ABI (abiSegmentSize, typeDefinition array, etc.) are packed, but the whole ABI byte serialization is padded to a whole segment.
+The elements of the DNA (abiSegmentSize, typeDefinition array, etc.) are packed, but the whole DNA byte serialization is padded to a whole segment.
 It is needed, because the data implementation part can start on a new segment which is required for cheap BMT inclusion proofs.
-Also, if the ABI is processed the Data Implementation has random access to its elements.
+Also, if the DNA is processed the Data Implementation has random access to its elements.
 
 The data implementation also consists of segments where the data type can reserve one or more segments. 
 If the data is smaller than a segment (32 bytes) than the data will be padded with zeros for the whole segment.
@@ -94,7 +94,7 @@ The _arrays_ and _objects_ are container types which can include multiple elemen
 
 In order to describe these elements, it is required to describe where these can be find in the data implementation and how to interpret those.
 
-The ABI describes this interpreation which's structure is stated below by types
+Its DNA describes this interpreation which's structure is stated below by types
 
 ### Array
 
@@ -102,7 +102,7 @@ A BeeSon array can be a _strict array_ or a _nullable array_.
 The former one requires every element to be set and cannot take `null` value.
 The latter allows to define `null` values at elements which's indices present in the nullable bitVector.
 
-The ABI structure looks like the following (including with the data implementation part for the better understanding)
+The DNA structure looks like the following (including with the data implementation part for the better understanding)
 
 ```
 ┌────────────────────────────────┐┐
@@ -113,7 +113,7 @@ The ABI structure looks like the following (including with the data implementati
 │ ┌────────────────────────────┐ ││
 │ │      typeDefiniton 1       │ ││
 │ ├────────────────────────────┤ ││
-│ │            ...             │ ││-> ABI
+│ │            ...             │ ││-> DNA
 │ ├────────────────────────────┤ ││
 │ │      typeDefiniton N       │ ││
 │ └────────────────────────────┘ ││
@@ -146,10 +146,10 @@ The ABI structure looks like the following (including with the data implementati
 
 A BeeSon object can be a _strict object_ or a _nullable object_.
 
-In the ABI, the keys have an order that the corresponding typeDefinition position defines.
-It prevents a JSON with the same schema (ABI) could be serialized in different ways.
+In the DNA, the keys have an order that the corresponding typeDefinition position defines.
+It prevents a JSON with the same schema (DNA) could be serialized in different ways.
 
-The ABI serialization looks really similar to the [array's ABI](#Array)
+The DNA serialization looks really similar to the [array's DNA](#Array)
 
 ```
 ┌────────────────────────────────┐┐
@@ -165,7 +165,7 @@ The ABI serialization looks really similar to the [array's ABI](#Array)
 │ │            ...             │ ││
 │ ├────────────────────────────┤ ││
 │ │      typeDefiniton N       │ ││
-│ └────────────────────────────┘ ││-> ABI
+│ └────────────────────────────┘ ││-> DNA
 │ ┌────────────────────────────┐ ││
 │ │          marker 1          │ ││
 │ ├────────────────────────────┤ ││
@@ -186,7 +186,7 @@ The ABI serialization looks really similar to the [array's ABI](#Array)
 └────────────────────────────────┘┘
 ```
 and the differences are:
-* **markersLength**: states the markers byte length in the ABI _only in case of nullableObject container type_
+* **markersLength**: states the markers byte length in the DNA _only in case of nullableObject container type_
 * **typeDefinition 1..N**: typeDefinition array consist of 7 bytes elements that represents
 ```
 ┌────────────────────────────────┐
@@ -228,11 +228,11 @@ You can import the followings directly from `@fairdatasociety/beeson`:
 
 * Type          # enum for [types](#Types) used in BeeSon
 * BeeSon        # BeeSon class that you can initialize with either JSON object or AbiManager
-* AbiManager    # AbiManager class that defines JSON object structures/types and its ABI
+* DnaManager    # DnaManager class that defines JSON object structures/types and its DNA
 
 Work with non-container types:
 ```js
-{ BeeSon, AbiManager } = require('@fairdatasociety/beeson')
+{ BeeSon, DnaManager } = require('@fairdatasociety/beeson')
 
 // initialize BeeSon object
 beeSon1 = new BeeSon({ json: 123 })
@@ -243,12 +243,12 @@ console.log(beeSon1.json)
 // it does not allow to override with value outside its defined type
 beeSon1.json = 456.789 //throws AssertJsonValueError: Wrong value for type number (integer)...
 beeSon1.json = 'john doe' //throws error as well
-// get JSON description of the ABI
-abiJson = beeSon1.abiManager.getAbiObject()
-// initialize AbiManager with this ABI JSON description
-abiManager = AbiManager.loadAbiObject(abiJson)
-// initialize new BeeSon object with the same ABI that beeSon1 has
-beeSon2 = new BeeSon({ abiManager })
+// get JSON description of the DNA
+dnaJson = beeSon1.dnaManager.getDnaObject()
+// initialize DnaManager with this DNA JSON description
+dnaManager = DnaManager.loadDnaObject(dnaJson)
+// initialize new BeeSon object with the same DNA that beeSon1 has
+beeSon2 = new BeeSon({ dnaManager })
 // set number value for beeSon2
 beeSon2.json = 789
 // serialize beeSon object
@@ -257,12 +257,12 @@ beeSon2Bytes = beeSon2.serialize()
 beeSon2Again = BeeSon.deserialize(beeSon2Bytes)
 // check its value and type
 console.log(beeSon2Again.json) // 789
-console.log(beeSon2Again.abiManager.type) // 29
+console.log(beeSon2Again.dnaManager.type) // 29
 ```
 
 The same actions can be done with container types, but it also can handle nulls on its element types:
 ```js
-{ BeeSon, AbiManager } = require('@fairdatasociety/beeson')
+{ BeeSon } = require('@fairdatasociety/beeson')
 
 json = {
     name: 'john coke',
@@ -277,12 +277,12 @@ json.id = 'ID3'
 json.buddies[0].name = 'buddha'
 beeSon1.json = json
 // print type
-console.log(beeSon1.abiManager.type) // 64
+console.log(beeSon1.dnaManager.type) // 64
 // try to set ID null
 json.id = null
 beeSon1.json = json // throws error
-// transform abi definition from strictObject to nullableObject
-nullableAbi = beeSon1.abiManager.getNullableContainerAbiManager()
-beeSon2 = new BeeSon({ abiManager: nullableAbi })
+// transform dna definition from strictObject to nullableObject
+nullableDna = beeSon1.dnaManager.getNullableContainerDnaManager()
+beeSon2 = new BeeSon({ dnaManager: nullableDna })
 beeSon2.json = json // does not throw error
 ```
