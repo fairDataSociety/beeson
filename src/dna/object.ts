@@ -1,6 +1,6 @@
 import { DnaManager, Header, TypeDefinitionO } from '.'
 import { BeeSon } from '../beeson'
-import { Type, assertBeeSonType } from '../types'
+import { Type, assertBeeSonType, serializeType, deserializeType } from '../types'
 import { BitVector } from '../bitvector'
 import {
   deserializeUint16,
@@ -11,18 +11,18 @@ import {
 import { serializeString } from '../marshalling/string-seralizer'
 import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } from '../utils'
 
-const OBJECT_TYPE_DEF_LENGTH = 7
+const OBJECT_TYPE_DEF_LENGTH = 8
 
 export function dnaNullableObject(dna: DnaManager<Type.nullableObject>): Uint8Array {
   const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
   const bv = new BitVector(dna.typeDefinitions.length)
 
-  const serializedTypeDefs: Bytes<7>[] = []
+  const serializedTypeDefs: Bytes<8>[] = []
   for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.dnaManager.type,
+        ...serializeType(typeDefinition.beeSon.dnaManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
@@ -62,7 +62,7 @@ export function spawnNullableObject(
   offset += 2
   const markerBytesLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
-  const starBitVektorByteIndex = offset + flattenTypeDefsLength * 7 + markerBytesLength
+  const starBitVektorByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH + markerBytesLength
   const bitVector = new BitVector(
     flattenTypeDefsLength,
     data.slice(starBitVektorByteIndex, starBitVektorByteIndex + Math.ceil(flattenTypeDefsLength / 8)),
@@ -75,10 +75,10 @@ export function spawnNullableObject(
   let i = 0
   let markerOffset = 0
   while (offset < OBJECT_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = data.slice(offset, offset + 1)[0]
-    const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
+    const type = deserializeType(data.slice(offset, offset + 2) as Bytes<2>)
+    const segmentLength = deserializeUint32(data.slice(offset + 2, offset + 6) as Bytes<4>)
 
-    const markerLength = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
+    const markerLength = deserializeUint16(data.slice(offset + 6, offset + 8) as Bytes<2>)
     const marker = bytesToString(
       data.slice(startMarkerByteIndex + markerOffset, startMarkerByteIndex + markerOffset + markerLength),
     )
@@ -132,10 +132,10 @@ export function spawnObject(
   const typeDefinitions: TypeDefinitionO[] = []
   let markerOffset = 0
   while (offset < OBJECT_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = data.slice(offset, offset + 1)[0]
-    const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
+    const type = deserializeType(data.slice(offset, offset + 2) as Bytes<2>)
+    const segmentLength = deserializeUint32(data.slice(offset + 2, offset + 6) as Bytes<4>)
 
-    const markerLength = deserializeUint16(data.slice(offset + 5, offset + 7) as Bytes<2>)
+    const markerLength = deserializeUint16(data.slice(offset + 6, offset + 8) as Bytes<2>)
     const marker = bytesToString(
       data.slice(startMarkerByteIndex + markerOffset, startMarkerByteIndex + markerOffset + markerLength),
     )
@@ -168,11 +168,11 @@ export function dnaObject(dna: DnaManager<Type.object>): Uint8Array {
   const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
 
-  const serializedTypeDefs: Bytes<7>[] = []
+  const serializedTypeDefs: Bytes<8>[] = []
   for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        typeDefinition.beeSon.dnaManager.type,
+        ...serializeType(typeDefinition.beeSon.dnaManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),

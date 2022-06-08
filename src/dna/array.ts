@@ -7,16 +7,19 @@ import {
   serializeUint16,
   serializeUint32,
 } from '../marshalling/number-serializer'
-import { assertBeeSonType, Type } from '../types'
+import { assertBeeSonType, deserializeType, serializeType, Type } from '../types'
 import { Bytes, encryptDecrypt, flattenBytesArray, segmentPaddingFromRight, segmentSize } from '../utils'
 
-const ARRAY_TYPE_DEF_LENGTH = 5
+const ARRAY_TYPE_DEF_LENGTH = 6
 
 export function dnaArray(dna: DnaManager<Type.array>): Uint8Array {
-  const serializedTypeDefs: Bytes<5>[] = []
+  const serializedTypeDefs: Bytes<6>[] = []
   for (const typeDefinition of dna.typeDefinitions) {
     serializedTypeDefs.push(
-      new Bytes([typeDefinition.beeSon.dnaManager.type, ...serializeUint32(typeDefinition.segmentLength)]),
+      new Bytes([
+        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeUint32(typeDefinition.segmentLength),
+      ]),
     )
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
@@ -54,8 +57,8 @@ export function spawnArray(
   const dnaByteSize = dnaSegmentSize * 32
   const typeDefinitions: TypeDefinitionA[] = []
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = data.slice(offset, offset + 1)[0]
-    const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
+    const type = deserializeType(data.slice(offset, offset + 2) as Bytes<2>)
+    const segmentLength = deserializeUint32(data.slice(offset + 2, offset + 6) as Bytes<4>)
 
     try {
       assertBeeSonType(type)
@@ -80,11 +83,14 @@ export function spawnArray(
 }
 
 export function dnaNullableArray(dna: DnaManager<Type.nullableArray>): Uint8Array {
-  const serializedTypeDefs: Bytes<5>[] = []
+  const serializedTypeDefs: Bytes<6>[] = []
   const bv = new BitVector(dna.typeDefinitions.length)
   for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
     serializedTypeDefs.push(
-      new Bytes([typeDefinition.beeSon.dnaManager.type, ...serializeUint32(typeDefinition.segmentLength)]),
+      new Bytes([
+        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeUint32(typeDefinition.segmentLength),
+      ]),
     )
     if (typeDefinition.beeSon.dnaManager.nullable) {
       bv.setBit(index)
@@ -123,7 +129,7 @@ export function spawnNullableArray(
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
-  const starBitVektorByteIndex = 4 + flattenTypeDefsLength * 5
+  const starBitVektorByteIndex = 4 + flattenTypeDefsLength * ARRAY_TYPE_DEF_LENGTH
   const bitVector = new BitVector(
     flattenTypeDefsLength,
     data.slice(starBitVektorByteIndex, starBitVektorByteIndex + Math.ceil(flattenTypeDefsLength / 8)),
@@ -134,8 +140,8 @@ export function spawnNullableArray(
   const typeDefinitions: TypeDefinitionA[] = []
   let i = 0
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
-    const type = data.slice(offset, offset + 1)[0]
-    const segmentLength = deserializeUint32(data.slice(offset + 1, offset + 5) as Bytes<4>)
+    const type = deserializeType(data.slice(offset, offset + 2) as Bytes<2>)
+    const segmentLength = deserializeUint32(data.slice(offset + 2, offset + 6) as Bytes<4>)
 
     try {
       assertBeeSonType(type)

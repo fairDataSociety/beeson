@@ -1,5 +1,5 @@
 import { BeeSon } from '../beeson'
-import { assertBeeSonType, JsonValue, Type, ValueType } from '../types'
+import { assertBeeSonType, deserializeType, JsonValue, serializeType, Type, ValueType } from '../types'
 import {
   assertArray,
   assertBigInt,
@@ -16,7 +16,6 @@ import {
   isNull,
   isNumber,
   isObject,
-  keccak256Hash,
   segmentPaddingFromRight,
   SEGMENT_SIZE,
 } from '../utils'
@@ -30,9 +29,10 @@ import { spawnArray, spawnNullableArray, dnaArray, dnaNullableArray } from './ar
 import { spawnNullableObject, spawnObject, dnaNullableObject, dnaObject } from './object'
 
 export const HEADER_BYTE_LENGTH = 64
+const BEESON_HEADER_ID = 1
 
 export enum Version {
-  unpackedV0_1 = 'beeson-0.1-unpacked',
+  unpackedV0_1 = '0.1.0',
 }
 
 export interface TypeDefinitionA {
@@ -285,7 +285,11 @@ export class DnaManager<T extends Type> {
   }
 
   public dnaHeader(): Bytes<64> {
-    const data = new Uint8Array([...serializeVersion(this._version), this._type])
+    const data = new Uint8Array([
+      ...serializeVersion(this._version),
+      ...new Uint8Array(26),
+      ...serializeType(this._type),
+    ]) // should be 32 bytes
     encryptDecrypt(this.obfuscationKey, data)
 
     return new Bytes([...this.obfuscationKey, ...data])
@@ -348,12 +352,12 @@ export class DnaManager<T extends Type> {
     const obfuscationKey = bytes.slice(0, 32) as Bytes<32>
     const decryptedBytes = new Uint8Array(bytes.slice(32))
     encryptDecrypt(obfuscationKey, decryptedBytes)
-    const versionHash = decryptedBytes.slice(0, 31)
-    const version = Version.unpackedV0_1 // Only current version
-    const type = decryptedBytes[31] as Type
+    const versionBytes = decryptedBytes.slice(0, 4) as Bytes<4>
+    const version = deserializeVersion(versionBytes)
+    const type = deserializeType(decryptedBytes.slice(30) as Bytes<2>)
 
     // version check
-    if (!equalBytes(versionHash, serializeVersion(Version.unpackedV0_1))) {
+    if (!equalBytes(versionBytes, serializeVersion(Version.unpackedV0_1))) {
       throw new Error(`Not a valid BeeSon version hash`)
     }
     // Type check
@@ -637,8 +641,37 @@ function identifyType<T extends JsonValue>(json: T): ValueType<T> {
   return type as ValueType<T>
 }
 
-function serializeVersion(version: Version): Bytes<31> {
-  return keccak256Hash(version).slice(0, 31) as Bytes<31>
+function serializeVersion(version: Version): Bytes<4> {
+  return new Bytes([1, ...serializeVersionSemver(version)])
+}
+
+function deserializeVersion(bytes: Bytes<4>): Version {
+  if (bytes[0] !== BEESON_HEADER_ID) {
+    throw new Error(`Error at version deserialization: ${bytes[0]} is not a BeeSon type in the header`)
+  }
+
+  const version = deserializeVersionSemver(bytes.slice(1) as Bytes<3>)
+
+  if (version !== Version.unpackedV0_1) {
+    throw new Error(`Error at version deserialization: ${version} is not an existing BeeSon version`)
+  }
+
+  return version
+}
+
+function serializeVersionSemver(version: Version): Bytes<3> {
+  const versionArray = version.split('.').map(v => Number(v))
+
+  return new Bytes([versionArray[0], versionArray[1], versionArray[2]])
+}
+
+function deserializeVersionSemver(bytes: Bytes<3>): Version {
+  const strings: string[] = []
+  for (const byte of bytes) {
+    strings.push(byte.toString())
+  }
+
+  return strings.join('.') as Version
 }
 
 function isObfuscationKey(value: unknown): value is Bytes<32> {

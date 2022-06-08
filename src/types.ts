@@ -1,4 +1,6 @@
 import { SwarmFeedCid, SwarmManifestCid } from './marshalling/address-serializer'
+import { deserializeUint16, serializeUint16 } from './marshalling/number-serializer'
+import { Bytes } from './utils'
 
 export type JsonMap<T> = {
   [K in keyof T]: JsonValue
@@ -6,22 +8,30 @@ export type JsonMap<T> = {
 
 /** string types, numeric types, misc types, container types */
 export enum Type {
-  null = 0,
-  boolean = 1,
-  float32 = 2,
-  float64 = 3,
+  null = 1,
+  boolean = 2,
+  float32 = 4,
+  float64 = 5,
   string = 8,
-  uint8 = 16,
-  int8 = 17,
-  int16 = 25,
-  int32 = 29,
-  int64 = 31,
-  array = 32,
-  nullableArray = 33,
-  object = 64,
-  nullableObject = 65,
-  swarmCac = 128,
-  swarmSoc = 132,
+  uint8 = 64,
+  int8 = 65,
+  int16 = 97,
+  int32 = 113,
+  int64 = 121,
+  array = 8192,
+  nullableArray = 8448,
+  object = 16384,
+  nullableObject = 16640,
+  swarmCac = 32768,
+  swarmSoc = 33024,
+}
+
+export function serializeType(type: Type): Bytes<2> {
+  return serializeUint16(type)
+}
+
+export function deserializeType(bytes: Bytes<2>): Type {
+  return deserializeUint16(bytes)
 }
 
 export type ContainerTypes = Type.array | Type.object
