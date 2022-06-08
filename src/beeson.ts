@@ -178,7 +178,7 @@ export class BeeSon<T extends JsonValue> {
 
   /** deserialise unpacked data */
   public static deserialize(data: Uint8Array, header?: Header<Type>): BeeSon<JsonValue> {
-    const { abiManager, processedBytes } = AbiManager.deserialize(data, header)
+    const { abiManager, processedBytes } = AbiManager.spawn(data, header)
     const beeSon = new BeeSon({ abiManager })
     beeSon.deserializeData(data.slice(processedBytes))
 
@@ -186,7 +186,7 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private serializeAbi(withoutBlobHeader: boolean): Uint8Array {
-    return this._abiManager.serialize(withoutBlobHeader)
+    return this._abiManager.dna(withoutBlobHeader)
   }
 
   public deserializeData(data: Uint8Array): void {

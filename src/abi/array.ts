@@ -12,7 +12,7 @@ import { Bytes, encryptDecrypt, flattenBytesArray, segmentPaddingFromRight, segm
 
 const ARRAY_TYPE_DEF_LENGTH = 5
 
-export function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
+export function dnaArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
   const serializedTypeDefs: Bytes<5>[] = []
   for (const typeDefinition of abi.typeDefinitions) {
     serializedTypeDefs.push(
@@ -38,7 +38,7 @@ export function serializeArrayAbi(abi: AbiManager<Type.array>): Uint8Array {
  * @param header blob header of the beeson data
  * @returns
  */
-export function deserializeArrayAbi(
+export function spawnArrayAbi(
   data: Uint8Array,
   header: Header<Type.array>,
 ): { abiManager: AbiManager<Type.array>; abiByteSize: number } {
@@ -79,7 +79,7 @@ export function deserializeArrayAbi(
   }
 }
 
-export function serializeNullableArrayAbi(abi: AbiManager<Type.nullableArray>): Uint8Array {
+export function dnaNullableArrayAbi(abi: AbiManager<Type.nullableArray>): Uint8Array {
   const serializedTypeDefs: Bytes<5>[] = []
   const bv = new BitVector(abi.typeDefinitions.length)
   for (const [index, typeDefinition] of abi.typeDefinitions.entries()) {
@@ -112,7 +112,7 @@ export function serializeNullableArrayAbi(abi: AbiManager<Type.nullableArray>): 
  * @param header blob header of the beeson data
  * @returns
  */
-export function deserializeNullableArrayAbi(
+export function spawnNullableArrayAbi(
   data: Uint8Array,
   header: Header<Type.nullableArray>,
 ): { abiManager: AbiManager<Type.nullableArray>; abiByteSize: number } {

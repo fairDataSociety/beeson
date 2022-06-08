@@ -124,9 +124,9 @@ describe('beeson', () => {
     expect(beeson.abiManager.type).toBe(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.abiManager.serialize()
-    const beeSonManager = AbiManager.deserialize(bytes).abiManager
-    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const bytes = beeson.abiManager.dna()
+    const beeSonManager = AbiManager.spawn(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
@@ -158,9 +158,9 @@ describe('beeson', () => {
     expect(beeson.abiManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.abiManager.serialize()
-    const beeSonManager = AbiManager.deserialize(bytes).abiManager
-    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const bytes = beeson.abiManager.dna()
+    const beeSonManager = AbiManager.spawn(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
@@ -192,9 +192,9 @@ describe('beeson', () => {
     expect(beeson.abiManager.type).toStrictEqual(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.abiManager.serialize()
-    const beeSonManager = AbiManager.deserialize(bytes).abiManager
-    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const bytes = beeson.abiManager.dna()
+    const beeSonManager = AbiManager.spawn(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
@@ -228,9 +228,9 @@ describe('beeson', () => {
     expect(beeson.abiManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.abiManager.serialize()
-    const beeSonManager = AbiManager.deserialize(bytes).abiManager
-    expect(bytes).toStrictEqual(beeSonManager.serialize())
+    const bytes = beeson.abiManager.dna()
+    const beeSonManager = AbiManager.spawn(bytes).abiManager
+    expect(bytes).toStrictEqual(beeSonManager.dna())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)

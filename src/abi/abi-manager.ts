@@ -26,18 +26,8 @@ import {
   isSwarmFeedCid,
   isSwarmManifestCid,
 } from '../marshalling/address-serializer'
-import {
-  deserializeArrayAbi,
-  deserializeNullableArrayAbi,
-  serializeArrayAbi,
-  serializeNullableArrayAbi,
-} from './array'
-import {
-  deserializeNullableObjectAbi,
-  deserializeObjectAbi,
-  serializeNullableObjectAbi,
-  serializeObjectAbi,
-} from './object'
+import { spawnArrayAbi, spawnNullableArrayAbi, dnaArrayAbi, dnaNullableArrayAbi } from './array'
+import { spawnNullableObjectAbi, spawnObjectAbi, dnaNullableObjectAbi, dnaObjectAbi } from './object'
 
 export const HEADER_BYTE_LENGTH = 64
 
@@ -273,18 +263,18 @@ export class AbiManager<T extends Type> {
   }
 
   /** `withoutBlobHeader` used mainly at container types */
-  public serialize(withoutBlobHeader = false): Uint8Array {
-    const header = withoutBlobHeader ? new Uint8Array() : this.serializeHeader()
+  public dna(withoutBlobHeader = false): Uint8Array {
+    const header = withoutBlobHeader ? new Uint8Array() : this.dnaHeader()
     let abi: Uint8Array
 
     if (isAbiManagerType(this, Type.array)) {
-      abi = serializeArrayAbi(this as AbiManager<Type.array>)
+      abi = dnaArrayAbi(this as AbiManager<Type.array>)
     } else if (this._type === Type.object) {
-      abi = serializeObjectAbi(this as AbiManager<Type.object>)
+      abi = dnaObjectAbi(this as AbiManager<Type.object>)
     } else if (this._type === Type.nullableArray) {
-      abi = serializeNullableArrayAbi(this as AbiManager<Type.nullableArray>)
+      abi = dnaNullableArrayAbi(this as AbiManager<Type.nullableArray>)
     } else if (this._type === Type.nullableObject) {
-      abi = serializeNullableObjectAbi(this as AbiManager<Type.nullableObject>)
+      abi = dnaNullableObjectAbi(this as AbiManager<Type.nullableObject>)
     } else {
       return header // no padding required
     }
@@ -294,48 +284,48 @@ export class AbiManager<T extends Type> {
     return new Uint8Array([...header, ...abi])
   }
 
-  public serializeHeader(): Bytes<64> {
+  public dnaHeader(): Bytes<64> {
     const data = new Uint8Array([...serializeVersion(this._version), this._type])
     encryptDecrypt(this.obfuscationKey, data)
 
     return new Bytes([...this.obfuscationKey, ...data])
   }
 
-  public static deserialize<T extends Type>(
+  public static spawn<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
   ): { abiManager: AbiManager<T>; processedBytes: number } {
     let processedBytes = 0
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
-      header = AbiManager.deserializeHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
+      header = AbiManager.spawnHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
       data = data.slice(64)
       processedBytes = 64
     }
 
     if (isHeaderType(header!, Type.array)) {
-      const { abiManager, abiByteSize } = deserializeArrayAbi(data, header)
+      const { abiManager, abiByteSize } = spawnArrayAbi(data, header)
 
       return {
         abiManager: abiManager as AbiManager<T>,
         processedBytes: processedBytes + abiByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { abiManager, abiByteSize } = deserializeObjectAbi(data, header)
+      const { abiManager, abiByteSize } = spawnObjectAbi(data, header)
 
       return {
         abiManager: abiManager as AbiManager<T>,
         processedBytes: processedBytes + abiByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableArray)) {
-      const { abiManager, abiByteSize } = deserializeNullableArrayAbi(data, header)
+      const { abiManager, abiByteSize } = spawnNullableArrayAbi(data, header)
 
       return {
         abiManager: abiManager as AbiManager<T>,
         processedBytes: processedBytes + abiByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { abiManager, abiByteSize } = deserializeNullableObjectAbi(data, header)
+      const { abiManager, abiByteSize } = spawnNullableObjectAbi(data, header)
 
       return {
         abiManager: abiManager as AbiManager<T>,
@@ -354,7 +344,7 @@ export class AbiManager<T extends Type> {
     }
   }
 
-  private static deserializeHeader(bytes: Bytes<64>): Header<Type> {
+  private static spawnHeader(bytes: Bytes<64>): Header<Type> {
     const obfuscationKey = bytes.slice(0, 32) as Bytes<32>
     const decryptedBytes = new Uint8Array(bytes.slice(32))
     encryptDecrypt(obfuscationKey, decryptedBytes)

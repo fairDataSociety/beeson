@@ -13,7 +13,7 @@ import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } 
 
 const OBJECT_TYPE_DEF_LENGTH = 7
 
-export function serializeNullableObjectAbi(abi: AbiManager<Type.nullableObject>): Uint8Array {
+export function dnaNullableObjectAbi(abi: AbiManager<Type.nullableObject>): Uint8Array {
   const markers = abi.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
   const bv = new BitVector(abi.typeDefinitions.length)
@@ -49,7 +49,7 @@ export function serializeNullableObjectAbi(abi: AbiManager<Type.nullableObject>)
   return bytes
 }
 
-export function deserializeNullableObjectAbi(
+export function spawnNullableObjectAbi(
   data: Uint8Array,
   header: Header<Type.nullableObject>,
 ): { abiManager: AbiManager<Type.nullableObject>; abiByteSize: number } {
@@ -114,7 +114,7 @@ export function deserializeNullableObjectAbi(
   }
 }
 
-export function deserializeObjectAbi(
+export function spawnObjectAbi(
   data: Uint8Array,
   header: Header<Type.object>,
 ): { abiManager: AbiManager<Type.object>; abiByteSize: number } {
@@ -164,7 +164,7 @@ export function deserializeObjectAbi(
   }
 }
 
-export function serializeObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
+export function dnaObjectAbi(abi: AbiManager<Type.object>): Uint8Array {
   const markers = abi.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
 
