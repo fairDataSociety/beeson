@@ -132,11 +132,11 @@ The DNA structure looks like the following (including with the data implementati
 └────────────────────────────────┘┘
 ```
 * **abiSegmentSize**: the byte size is `abiSegmentSize * 32` until the Data implementation
-* **typeDefintionsSize**: tells how many elements `typeDefiniton array` has (value * 5 bytes long)
-* **typeDefinition 1..N**: typeDefinition array consist of 5 bytes elements that represents
+* **typeDefintionsSize**: tells how many elements `typeDefiniton array` has (value * 6 bytes long)
+* **typeDefinition 1..N**: typeDefinition array consist of 6 bytes elements that represents
 ```
 ┌────────────────────────────────┐
-│          type <1 byte>         │-> data type of the element that has the same value set like header types
+│          type <2 byte>         │-> data type of the element that has the same value set like header types
 ├────────────────────────────────┤
 │      segmentLength <4 byte>    │-> how many segments the data implementation reserves
 └────────────────────────────────┘
@@ -189,10 +189,10 @@ The DNA serialization looks really similar to the [array's DNA](#Array)
 ```
 and the differences are:
 * **markersLength**: states the markers byte length in the DNA _only in case of nullableObject container type_
-* **typeDefinition 1..N**: typeDefinition array consist of 7 bytes elements that represents
+* **typeDefinition 1..N**: typeDefinition array consist of 8 bytes elements that represents
 ```
 ┌────────────────────────────────┐
-│          type <1 byte>         │
+│          type <2 byte>         │
 ├────────────────────────────────┤
 │      segmentLength <4 byte>    │
 ├────────────────────────────────┤
