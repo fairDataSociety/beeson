@@ -1,3 +1,3 @@
 export * from './beeson'
-export { DnaManager } from './dna'
+export { TypeSpecification as DnaManager } from './type-specification'
 export { Type } from './types'

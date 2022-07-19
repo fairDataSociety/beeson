@@ -25,8 +25,13 @@ import {
   isSwarmFeedCid,
   isSwarmManifestCid,
 } from '../marshalling/address-serializer'
-import { spawnArray, spawnNullableArray, dnaArray, dnaNullableArray } from './array'
-import { spawnNullableObject, spawnObject, dnaNullableObject, dnaObject } from './object'
+import { deserializeArray, deserializeNullableArray, serializeArray, serializeNullableArray } from './array'
+import {
+  loadNullableObject,
+  loadObject,
+  typeSpecificationNullableObject,
+  typeSpecificationObject,
+} from './object'
 
 export const HEADER_BYTE_LENGTH = 64
 const BEESON_HEADER_ID = 1
@@ -47,7 +52,7 @@ export interface TypeDefinitionO extends TypeDefinitionA {
 
 interface ChildA {
   segmentLength: number
-  dna: DnaObject<Type>
+  typeSpecification: DnaObject<Type>
 }
 
 interface ChildANullable extends ChildA {
@@ -82,8 +87,11 @@ interface DnaRootObject<T extends Type> extends DnaObject<T> {
   version: Version
 }
 
-function isDnaObjectType<T extends Type>(dnaObject: DnaObject<Type>, type: T): dnaObject is DnaObject<T> {
-  return dnaObject.type === type
+function isDnaObjectType<T extends Type>(
+  typeSpecificationObject: DnaObject<Type>,
+  type: T,
+): typeSpecificationObject is DnaObject<T> {
+  return typeSpecificationObject.type === type
 }
 
 export interface Dna<T extends Type = Type> {
@@ -111,12 +119,12 @@ type TypeDefinitions<T extends Type> = T extends Type.array | Type.nullableArray
   : null
 
 type NullableContainerDnaManager<T extends Type> = T extends Type.array
-  ? DnaManager<Type.nullableArray>
+  ? TypeSpecification<Type.nullableArray>
   : T extends Type.object
-  ? DnaManager<Type.nullableObject>
+  ? TypeSpecification<Type.nullableObject>
   : never
 
-export class DnaManager<T extends Type> {
+export class TypeSpecification<T extends Type> {
   constructor(
     public obfuscationKey: Bytes<32>,
     private _version: Version,
@@ -139,54 +147,63 @@ export class DnaManager<T extends Type> {
   }
 
   /**
-   * Asserts whether the given JsonValue satisfies its corresponding DNA
+   * Asserts whether the given JsonValue satisfies its corresponding TypeSpecification
    * Container typed values have shallow assertion as their elements will have own BeeSon object anyway.
    */
   // eslint-disable-next-line complexity
   public assertJsonValue(value: unknown): asserts value is JsonValue {
     if (this.nullable && isNull(value)) return
-    if (isDnaManagerType(this, Type.swarmCac)) {
+    if (isTypeSpecificaitonManagerType(this, Type.swarmCac)) {
       return assertSwarmManifestCid(value)
     }
-    if (isDnaManagerType(this, Type.swarmSoc)) {
+    if (isTypeSpecificaitonManagerType(this, Type.swarmSoc)) {
       return assertSwarmFeedCid(value)
     }
-    if (isDnaManagerType(this, Type.float32) || isDnaManagerType(this, Type.float64)) {
+    if (
+      isTypeSpecificaitonManagerType(this, Type.float32) ||
+      isTypeSpecificaitonManagerType(this, Type.float64)
+    ) {
       return assertNumber(value)
     }
     if (
-      isDnaManagerType(this, Type.uint8) ||
-      isDnaManagerType(this, Type.int8) ||
-      isDnaManagerType(this, Type.int16) ||
-      isDnaManagerType(this, Type.int32)
+      isTypeSpecificaitonManagerType(this, Type.uint8) ||
+      isTypeSpecificaitonManagerType(this, Type.int8) ||
+      isTypeSpecificaitonManagerType(this, Type.int16) ||
+      isTypeSpecificaitonManagerType(this, Type.int32)
     ) {
       return assertInteger(value)
     }
-    if (isDnaManagerType(this, Type.int64)) {
+    if (isTypeSpecificaitonManagerType(this, Type.int64)) {
       return assertBigInt(value)
     }
-    if (isDnaManagerType(this, Type.string)) {
+    if (isTypeSpecificaitonManagerType(this, Type.string)) {
       return assertString(value)
     }
-    if (isDnaManagerType(this, Type.array) || isDnaManagerType(this, Type.nullableArray)) {
+    if (
+      isTypeSpecificaitonManagerType(this, Type.array) ||
+      isTypeSpecificaitonManagerType(this, Type.nullableArray)
+    ) {
       assertArray(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionA[]
       if (value.length !== typeDefs.length) {
         throw new Error(
-          `Given JSON array has ${value.length} length, when the dna defines ${typeDefs.length} length`,
+          `Given JSON array has ${value.length} length, when the typeSpecification defines ${typeDefs.length} length`,
         )
       }
 
       return
     }
-    if (isDnaManagerType(this, Type.object) || isDnaManagerType(this, Type.nullableObject)) {
+    if (
+      isTypeSpecificaitonManagerType(this, Type.object) ||
+      isTypeSpecificaitonManagerType(this, Type.nullableObject)
+    ) {
       assertObject(value)
       const objectKeys = Object.keys(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionO[]
       if (objectKeys.length !== typeDefs.length) {
         const typeDefKeys = typeDefs.map(def => def.marker)
         throw new Error(
-          `Given JSON object has ${objectKeys.length} key length, when the dna defines ${
+          `Given JSON object has ${objectKeys.length} key length, when the typeSpecification defines ${
             typeDefs.length
           } length.\n\tMissing keys: ${typeDefKeys.filter(k => !objectKeys.includes(k))}`,
         )
@@ -199,57 +216,59 @@ export class DnaManager<T extends Type> {
 
       return
     }
-    if (isDnaManagerType(this, Type.boolean)) {
+    if (isTypeSpecificaitonManagerType(this, Type.boolean)) {
       return assertBoolean(value)
     }
-    if (isDnaManagerType(this, Type.null)) {
+    if (isTypeSpecificaitonManagerType(this, Type.null)) {
       return assertNull(value)
     }
 
-    throw new Error(`DNA assertion problem at value "${value}". There is no corresponding check`)
+    throw new Error(
+      `TypeSpecification assertion problem at value "${value}". There is no corresponding check`,
+    )
   }
 
-  public getDnaObject(): DnaObject<T> {
-    if (isDnaManagerType(this, Type.array)) {
+  public getTypeSpecificationObject(): DnaObject<T> {
+    if (isTypeSpecificaitonManagerType(this, Type.array)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            dna: typeDef.beeSon.dnaManager.getDnaObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
           }
         }) as DnaChildren<T>,
       }
-    } else if (isDnaManagerType(this, Type.nullableArray)) {
+    } else if (isTypeSpecificaitonManagerType(this, Type.nullableArray)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            dna: typeDef.beeSon.dnaManager.getDnaObject(),
-            nullable: typeDef.beeSon.dnaManager.nullable,
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            nullable: typeDef.beeSon.typeSpecificationManager.nullable,
           }
         }) as DnaChildren<T>,
       }
-    } else if (isDnaManagerType(this, Type.nullableObject)) {
+    } else if (isTypeSpecificaitonManagerType(this, Type.nullableObject)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            dna: typeDef.beeSon.dnaManager.getDnaObject(),
-            nullable: typeDef.beeSon.dnaManager.nullable,
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            nullable: typeDef.beeSon.typeSpecificationManager.nullable,
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
       }
-    } else if (isDnaManagerType(this, Type.object)) {
+    } else if (isTypeSpecificaitonManagerType(this, Type.object)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            dna: typeDef.beeSon.dnaManager.getDnaObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
@@ -263,28 +282,28 @@ export class DnaManager<T extends Type> {
   }
 
   /** `withoutBlobHeader` used mainly at container types */
-  public dna(withoutBlobHeader = false): Uint8Array {
-    const header = withoutBlobHeader ? new Uint8Array() : this.dnaHeader()
-    let dna: Uint8Array
+  public serialize(withoutBlobHeader = false): Uint8Array {
+    const header = withoutBlobHeader ? new Uint8Array() : this.typeSpecificationHeader()
+    let typeSpecification: Uint8Array
 
-    if (isDnaManagerType(this, Type.array)) {
-      dna = dnaArray(this as DnaManager<Type.array>)
+    if (isTypeSpecificaitonManagerType(this, Type.array)) {
+      typeSpecification = serializeArray(this as TypeSpecification<Type.array>)
     } else if (this._type === Type.object) {
-      dna = dnaObject(this as DnaManager<Type.object>)
+      typeSpecification = typeSpecificationObject(this as TypeSpecification<Type.object>)
     } else if (this._type === Type.nullableArray) {
-      dna = dnaNullableArray(this as DnaManager<Type.nullableArray>)
+      typeSpecification = serializeNullableArray(this as TypeSpecification<Type.nullableArray>)
     } else if (this._type === Type.nullableObject) {
-      dna = dnaNullableObject(this as DnaManager<Type.nullableObject>)
+      typeSpecification = typeSpecificationNullableObject(this as TypeSpecification<Type.nullableObject>)
     } else {
       return header // no padding required
     }
-    dna = segmentPaddingFromRight(dna)
-    encryptDecrypt(this.obfuscationKey, dna)
+    typeSpecification = segmentPaddingFromRight(typeSpecification)
+    encryptDecrypt(this.obfuscationKey, typeSpecification)
 
-    return new Uint8Array([...header, ...dna])
+    return new Uint8Array([...header, ...typeSpecification])
   }
 
-  public dnaHeader(): Bytes<64> {
+  public typeSpecificationHeader(): Bytes<64> {
     const data = new Uint8Array([
       ...serializeVersion(this._version),
       ...new Uint8Array(26),
@@ -295,50 +314,56 @@ export class DnaManager<T extends Type> {
     return new Bytes([...this.obfuscationKey, ...data])
   }
 
-  public static spawn<T extends Type>(
+  public static deserialize<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
-  ): { dnaManager: DnaManager<T>; processedBytes: number } {
+  ): { typeSpecificationManager: TypeSpecification<T>; processedBytes: number } {
     let processedBytes = 0
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
-      header = DnaManager.spawnHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
+      header = TypeSpecification.deserializeHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
       data = data.slice(64)
       processedBytes = 64
     }
 
     if (isHeaderType(header!, Type.array)) {
-      const { dnaManager, dnaByteSize } = spawnArray(data, header)
+      const {
+        typeSpecificationManager: typeSpecificationManager,
+        typeSpecificationByteSize: typeSpecificationByteSize,
+      } = deserializeArray(data, header)
 
       return {
-        dnaManager: dnaManager as DnaManager<T>,
-        processedBytes: processedBytes + dnaByteSize,
+        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        processedBytes: processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { dnaManager, dnaByteSize } = spawnObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = loadObject(data, header)
 
       return {
-        dnaManager: dnaManager as DnaManager<T>,
-        processedBytes: processedBytes + dnaByteSize,
+        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        processedBytes: processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableArray)) {
-      const { dnaManager, dnaByteSize } = spawnNullableArray(data, header)
+      const {
+        typeSpecificationManager: typeSpecificationManager,
+        typeSpecificationByteSize: typeSpecificationByteSize,
+      } = deserializeNullableArray(data, header)
 
       return {
-        dnaManager: dnaManager as DnaManager<T>,
-        processedBytes: processedBytes + dnaByteSize,
+        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        processedBytes: processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { dnaManager, dnaByteSize } = spawnNullableObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = loadNullableObject(data, header)
 
       return {
-        dnaManager: dnaManager as DnaManager<T>,
-        processedBytes: processedBytes + dnaByteSize,
+        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        processedBytes: processedBytes + typeSpecificationByteSize,
       }
     }
 
     return {
-      dnaManager: new DnaManager(
+      typeSpecificationManager: new TypeSpecification(
         header.obfuscationKey,
         header.version,
         header.type,
@@ -348,7 +373,7 @@ export class DnaManager<T extends Type> {
     }
   }
 
-  private static spawnHeader(bytes: Bytes<64>): Header<Type> {
+  private static deserializeHeader(bytes: Bytes<64>): Header<Type> {
     const obfuscationKey = bytes.slice(0, 32) as Bytes<32>
     const decryptedBytes = new Uint8Array(bytes.slice(32))
     encryptDecrypt(obfuscationKey, decryptedBytes)
@@ -370,142 +395,175 @@ export class DnaManager<T extends Type> {
     }
   }
 
-  public static loadDnaRootObject<T extends Type>(dna: DnaRootObject<T>): DnaManager<T> {
-    return DnaManager.loadDnaObject(dna, dna.obfuscationKey, dna.version)
+  public static loadDnaRootObject<T extends Type>(typeSpecification: DnaRootObject<T>): TypeSpecification<T> {
+    return TypeSpecification.loadDnaObject(
+      typeSpecification,
+      typeSpecification.obfuscationKey,
+      typeSpecification.version,
+    )
   }
 
   public static loadDnaObject<T extends Type>(
-    dna: DnaObject<T>,
+    typeSpecification: DnaObject<T>,
     obfuscationKey: Bytes<32> = new Bytes(32),
     version = Version.unpackedV0_1,
     nullable = false,
-  ): DnaManager<T> {
+  ): TypeSpecification<T> {
     assertObfuscationKey(obfuscationKey)
     assertVersion(version)
 
-    if (isDnaObjectType(dna, Type.array)) {
-      const typeDefinitions: TypeDefinitionA[] = dna.children.map(child => {
+    if (isDnaObjectType(typeSpecification, Type.array)) {
+      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            dnaManager: DnaManager.loadDnaObject(child.dna, obfuscationKey, version) as DnaManager<any>,
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              obfuscationKey,
+              version,
+            ) as TypeSpecification<any>,
             obfuscationKey,
           }),
         }
       })
 
-      return new DnaManager(obfuscationKey, version, Type.array, typeDefinitions, nullable) as DnaManager<T>
-    } else if (isDnaObjectType(dna, Type.nullableArray)) {
-      const typeDefinitions: TypeDefinitionA[] = dna.children.map(child => {
+      return new TypeSpecification(
+        obfuscationKey,
+        version,
+        Type.array,
+        typeDefinitions,
+        nullable,
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
+      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            dnaManager: DnaManager.loadDnaObject(
-              child.dna,
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
               obfuscationKey,
               version,
               child.nullable,
-            ) as DnaManager<any>,
+            ) as TypeSpecification<any>,
             obfuscationKey,
           }),
         }
       })
 
-      return new DnaManager(
+      return new TypeSpecification(
         obfuscationKey,
         version,
         Type.nullableArray,
         typeDefinitions,
         nullable,
-      ) as DnaManager<T>
-    } else if (isDnaObjectType(dna, Type.object)) {
-      const typeDefinitions: TypeDefinitionO[] = dna.children.map(child => {
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.object)) {
+      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            dnaManager: DnaManager.loadDnaObject(child.dna, obfuscationKey, version) as DnaManager<any>,
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              obfuscationKey,
+              version,
+            ) as TypeSpecification<any>,
             obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
-      return new DnaManager(obfuscationKey, version, Type.object, typeDefinitions, nullable) as DnaManager<T>
-    } else if (isDnaObjectType(dna, Type.nullableObject)) {
-      const typeDefinitions: TypeDefinitionO[] = dna.children.map(child => {
+      return new TypeSpecification(
+        obfuscationKey,
+        version,
+        Type.object,
+        typeDefinitions,
+        nullable,
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
+      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            dnaManager: DnaManager.loadDnaObject(
-              child.dna,
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
               obfuscationKey,
               version,
               child.nullable,
-            ) as DnaManager<any>,
+            ) as TypeSpecification<any>,
             obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
-      return new DnaManager(
+      return new TypeSpecification(
         obfuscationKey,
         version,
         Type.nullableObject,
         typeDefinitions,
         nullable,
-      ) as DnaManager<T>
+      ) as TypeSpecification<T>
     }
 
-    return new DnaManager(obfuscationKey, version, dna.type, null as TypeDefinitions<T>, nullable)
+    return new TypeSpecification(
+      obfuscationKey,
+      version,
+      typeSpecification.type,
+      null as TypeDefinitions<T>,
+      nullable,
+    )
   }
 
   // mutate methods
 
   /**
    * Set container object element nullable or disallow to be that
-   * @throws if the stored json value of the element has conflict with the nullable dna parameter
-   * | (e.g.) DNA was nullable before and the json value null, and user changes nullable to false
+   * @throws if the stored json value of the element has conflict with the nullable typeSpecification parameter
+   * | (e.g.) TypeSpecification was nullable before and the json value null, and user changes nullable to false
    */
   public setTypeDefinitionNullable(typeDefIndex: number, nullable: boolean) {
-    if (!this._typeDefinitions) throw new Error(`DNA does not handle a container type`)
-    if (!isDnaManagerType(this, Type.nullableArray) && !isDnaManagerType(this, Type.nullableObject)) {
-      throw new Error(`DNA does not handle nullable container here`)
+    if (!this._typeDefinitions) throw new Error(`Type does not handle a container type`)
+    if (
+      !isTypeSpecificaitonManagerType(this, Type.nullableArray) &&
+      !isTypeSpecificaitonManagerType(this, Type.nullableObject)
+    ) {
+      throw new Error(`The TypeSpecification does not allow nullable container here`)
     }
     if (!this.typeDefinitions[typeDefIndex]) {
       throw new Error(`there is no typedefintion on index ${typeDefIndex}`)
     }
     const oldBeeSon = this.typeDefinitions[typeDefIndex].beeSon
-    const oldDnaManager = oldBeeSon.dnaManager
+    const oldDnaManager = oldBeeSon.typeSpecificationManager
     const oldTypeDefs = Array.isArray(oldDnaManager.typeDefinitions)
       ? [...oldDnaManager.typeDefinitions]
       : oldDnaManager.typeDefinitions
-    const newDnaManager = new DnaManager(
+    const newDnaManager = new TypeSpecification(
       oldDnaManager.obfuscationKey,
       oldDnaManager.version,
       oldDnaManager.type,
       oldTypeDefs,
       nullable,
     )
-    const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
+    const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
     newBeeSon.json = oldBeeSon.json
     //overwrite new beeson object for element
     this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
   }
 
   public getNullableContainerDnaManager(): NullableContainerDnaManager<T> {
-    if (isDnaManagerType(this, Type.array)) {
+    if (isTypeSpecificaitonManagerType(this, Type.array)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldDnaManager = oldBeeSon.dnaManager
-        const newDnaManager = new DnaManager(
+        const oldDnaManager = oldBeeSon.typeSpecificationManager
+        const newDnaManager = new TypeSpecification(
           oldDnaManager.obfuscationKey,
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
+        const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
         const newTypeDef: TypeDefinitionA = {
           segmentLength: oldTypeDef.segmentLength,
           beeSon: newBeeSon,
@@ -514,25 +572,25 @@ export class DnaManager<T extends Type> {
         return newTypeDef
       })
 
-      return new DnaManager(
+      return new TypeSpecification(
         this.obfuscationKey,
         this.version,
         Type.nullableArray,
         typeDefinitions,
       ) as NullableContainerDnaManager<T>
     }
-    if (isDnaManagerType(this, Type.object)) {
+    if (isTypeSpecificaitonManagerType(this, Type.object)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldDnaManager = oldBeeSon.dnaManager
-        const newDnaManager = new DnaManager(
+        const oldDnaManager = oldBeeSon.typeSpecificationManager
+        const newDnaManager = new TypeSpecification(
           oldDnaManager.obfuscationKey,
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ dnaManager: newDnaManager })
+        const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
         const newTypeDef: TypeDefinitionO = {
           ...oldTypeDef,
           beeSon: newBeeSon,
@@ -541,7 +599,7 @@ export class DnaManager<T extends Type> {
         return newTypeDef
       })
 
-      return new DnaManager(
+      return new TypeSpecification(
         this.obfuscationKey,
         this.version,
         Type.nullableObject,
@@ -549,14 +607,14 @@ export class DnaManager<T extends Type> {
       ) as NullableContainerDnaManager<T>
     }
 
-    throw new Error(`This DNA does not represent a nullable container value`)
+    throw new Error(`This TypeSpecification does not represent a nullable container value`)
   }
 }
 
 export function generateDna<T extends JsonValue>(
   json: T,
   obfuscationKey?: Bytes<32>,
-): DnaManager<ValueType<T>> {
+): TypeSpecification<ValueType<T>> {
   const type = identifyType(json)
   const version = Version.unpackedV0_1
   obfuscationKey = obfuscationKey || new Bytes(32)
@@ -572,7 +630,12 @@ export function generateDna<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength })
     }
 
-    return new DnaManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new TypeSpecification(
+      obfuscationKey,
+      version,
+      type,
+      typeDefinitions as TypeDefinitions<ValueType<T>>,
+    )
   } else if (type === Type.object) {
     const jsonObject = json as Record<string, unknown>
     const markerArray: string[] = Object.keys(jsonObject).sort()
@@ -586,17 +649,22 @@ export function generateDna<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength, marker })
     }
 
-    return new DnaManager(obfuscationKey, version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new TypeSpecification(
+      obfuscationKey,
+      version,
+      type,
+      typeDefinitions as TypeDefinitions<ValueType<T>>,
+    )
   }
 
-  return new DnaManager(obfuscationKey, version, type, null as TypeDefinitions<ValueType<T>>)
+  return new TypeSpecification(obfuscationKey, version, type, null as TypeDefinitions<ValueType<T>>)
 }
 
-export function isDnaManagerType<T extends Type>(
-  dnaManager: DnaManager<Type>,
+export function isTypeSpecificaitonManagerType<T extends Type>(
+  typeSpecificationManager: TypeSpecification<Type>,
   type: T,
-): dnaManager is DnaManager<T> {
-  return dnaManager.type === type
+): typeSpecificationManager is TypeSpecification<T> {
+  return typeSpecificationManager.type === type
 }
 
 function isHeaderType<T extends Type>(header: Header<Type>, type: T): header is Header<T> {

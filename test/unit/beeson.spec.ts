@@ -7,7 +7,7 @@ describe('beeson', () => {
   it('should work with integer type', () => {
     const json = 123
     const beeson = new BeeSon<number>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.int32)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.int32)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
@@ -23,7 +23,7 @@ describe('beeson', () => {
   it('should work with floating type', () => {
     const json = 123.123
     const beeson = new BeeSon<number>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.float64)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.float64)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
@@ -38,7 +38,7 @@ describe('beeson', () => {
     const json = 'john coke'
     const beeson = new BeeSon<string>({ json })
     expect(beeson.json).toBe(json)
-    expect(beeson.dnaManager.type).toBe(Type.string)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.string)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
     expect(beesonAgain.json).toBe(json)
@@ -50,7 +50,7 @@ describe('beeson', () => {
   it('should work with boolean type', () => {
     const json = false
     const beeson = new BeeSon<boolean>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.boolean)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.boolean)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
@@ -65,7 +65,7 @@ describe('beeson', () => {
   it('should work with BigInt type', () => {
     const json = 1n
     const beeson = new BeeSon<BigInt>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.int64)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.int64)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
@@ -80,11 +80,11 @@ describe('beeson', () => {
   it('should work with manifest CID', () => {
     const json = 'bah5acgzadxcwdayt52nxhygvpou6e63p2vsl23m4kc63f2hyk2avg4joafoq'
     const beeson = new BeeSon<SwarmManifestCid>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.swarmCac)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.swarmCac)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = BeeSon.deserialize(beeson.serialize())
-    expect(beesonAgain.json.toString()).toBe(json) // // by default CID string are provided as CID objects
+    expect(beesonAgain.json!.toString()).toBe(json) // // by default CID string are provided as CID objects
     // modificiation correctness
     // test whether it works with CID object as well
     beeson.json = encodeManifestReference('1dc5618313ee9b73e0d57ba9e27b6fd564bd6d9c50bdb2e8f8568153712e015d')
@@ -97,14 +97,14 @@ describe('beeson', () => {
   it('should work with feed CID', () => {
     const json = 'bah5qcgzaymd4255atbv6kkelx75ezqaq64n7vhxgbkw64bjfjedougktli6q'
     const beeson = new BeeSon<SwarmFeedCid>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.swarmSoc)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.swarmSoc)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const serialized = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialized)
-    expect(beesonAgain.json.toString()).toBe(json) // by default CID string are provided as CID objects
+    expect(beesonAgain.json!.toString()).toBe(json) // by default CID string are provided as CID objects
     // obfuscation key change
-    beesonAgain.dnaManager.obfuscationKey = randomByteArray(32)
+    beesonAgain.typeSpecificationManager.obfuscationKey = randomByteArray(32)
     const serialized2 = beesonAgain.serialize()
     const beesonAgain2 = BeeSon.deserialize(serialized2)
     expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
@@ -121,17 +121,17 @@ describe('beeson', () => {
   it('should work with typed arrays', () => {
     const json = [0, 1, 2, 3, 5, 6]
     const beeson = new BeeSon({ json })
-    expect(beeson.dnaManager.type).toBe(Type.array)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.dnaManager.dna()
-    const beeSonManager = DnaManager.spawn(bytes).dnaManager
-    expect(bytes).toStrictEqual(beeSonManager.dna())
+    const bytes = beeson.typeSpecificationManager.serialize()
+    const beeSonManager = DnaManager.deserialize(bytes).typeSpecificationManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
     // obfuscation key change
-    beesonAgain.dnaManager.obfuscationKey = randomByteArray(32)
+    beesonAgain.typeSpecificationManager.obfuscationKey = randomByteArray(32)
     const serialised2 = beesonAgain.serialize()
     const beesonAgain2 = BeeSon.deserialize(serialised2)
     expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
@@ -145,7 +145,7 @@ describe('beeson', () => {
       /^Wrong value for type array. Got value has type: string. Value: john coke/,
     )
     expect(() => (beeson.json = [0, 1, 2])).toThrowError(
-      /^Given JSON array has 3 length, when the dna defines 6 length/,
+      /^Given JSON array has 3 length, when the typeSpecification defines 6 length/,
     )
     expect(() => (beeson.json = [3, 4, 5, 'john', 'coke', 0] as unknown as number[])).toThrowError(
       'BeeSon Array assertion problem at index 3: Wrong value for type number (integer). Got value has type: string. Value: john',
@@ -155,17 +155,17 @@ describe('beeson', () => {
   it('should work with 1 level object', () => {
     let json = { name: 'john coke', age: 48, id: 'ID2' }
     const beeson = new BeeSon({ json })
-    expect(beeson.dnaManager.type).toStrictEqual(Type.object)
+    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.dnaManager.dna()
-    const beeSonManager = DnaManager.spawn(bytes).dnaManager
-    expect(bytes).toStrictEqual(beeSonManager.dna())
+    const bytes = beeson.typeSpecificationManager.serialize()
+    const beeSonManager = DnaManager.deserialize(bytes).typeSpecificationManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
     // obfuscation key change
-    beesonAgain.dnaManager.obfuscationKey = randomByteArray(32)
+    beesonAgain.typeSpecificationManager.obfuscationKey = randomByteArray(32)
     const serialised2 = beesonAgain.serialize()
     const beesonAgain2 = BeeSon.deserialize(serialised2)
     expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
@@ -189,17 +189,17 @@ describe('beeson', () => {
   it('should work with polimorfic arrays', () => {
     let json = [0, '1', false, { name: 'john coke' }, 5]
     const beeson = new BeeSon({ json })
-    expect(beeson.dnaManager.type).toStrictEqual(Type.array)
+    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.dnaManager.dna()
-    const beeSonManager = DnaManager.spawn(bytes).dnaManager
-    expect(bytes).toStrictEqual(beeSonManager.dna())
+    const bytes = beeson.typeSpecificationManager.serialize()
+    const beeSonManager = DnaManager.deserialize(bytes).typeSpecificationManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
     // obfuscation key change
-    beesonAgain.dnaManager.obfuscationKey = randomByteArray(32)
+    beesonAgain.typeSpecificationManager.obfuscationKey = randomByteArray(32)
     const serialised2 = beesonAgain.serialize()
     const beesonAgain2 = BeeSon.deserialize(serialised2)
     expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
@@ -215,27 +215,27 @@ describe('beeson', () => {
       /^Wrong value for type array. Got value has type: string. Value: john coke/,
     )
     expect(() => (beeson.json = [0, 1, 2])).toThrowError(
-      /^Given JSON array has 3 length, when the dna defines 5 length/,
+      /^Given JSON array has 3 length, when the typeSpecification defines 5 length/,
     )
     expect(() => (beeson.json = [0, 1, 2])).toThrowError(
-      /^Given JSON array has 3 length, when the dna defines 5 length/,
+      /^Given JSON array has 3 length, when the typeSpecification defines 5 length/,
     )
   })
 
   it('should work with complex object', () => {
     let json = { name: 'john coke', age: 48, id: 'ID2', buddies: [{ name: 'jesus', age: 33, id: 'ID1' }] }
     const beeson = new BeeSon({ json })
-    expect(beeson.dnaManager.type).toStrictEqual(Type.object)
+    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.dnaManager.dna()
-    const beeSonManager = DnaManager.spawn(bytes).dnaManager
-    expect(bytes).toStrictEqual(beeSonManager.dna())
+    const bytes = beeson.typeSpecificationManager.serialize()
+    const beeSonManager = DnaManager.deserialize(bytes).typeSpecificationManager
+    expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = BeeSon.deserialize(serialised)
     expect(beesonAgain.json).toStrictEqual(json)
     // obfuscation key change
-    beesonAgain.dnaManager.obfuscationKey = randomByteArray(32)
+    beesonAgain.typeSpecificationManager.obfuscationKey = randomByteArray(32)
     const serialised2 = beesonAgain.serialize()
     const beesonAgain2 = BeeSon.deserialize(serialised2)
     expect(beesonAgain2.json).toStrictEqual(beesonAgain.json)
@@ -264,7 +264,7 @@ describe('beeson', () => {
           buddies: [],
         }),
     ).toThrowError(
-      'BeeSon Object assertion problem at index buddies: Given JSON array has 0 length, when the dna defines 1 length',
+      'BeeSon Object assertion problem at index buddies: Given JSON array has 0 length, when the typeSpecification defines 1 length',
     )
   })
 })

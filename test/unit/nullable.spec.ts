@@ -19,15 +19,15 @@ describe('nullable operations on beeson', () => {
       buddies: [{ name: 'jesus', age: 33, id: 'ID1' }],
     }
     const beeson = new BeeSon<TestDataMain>({ json })
-    expect(beeson.dnaManager.type).toBe(Type.object)
+    expect(beeson.typeSpecificationManager.type).toBe(Type.object)
     const nullableBeeSon = beeson.getNullableContainer()
-    expect(nullableBeeSon.dnaManager.type).toBe(Type.nullableObject)
+    expect(nullableBeeSon.typeSpecificationManager.type).toBe(Type.nullableObject)
     const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const json2 = nullableBeeSon.json
     json2.age = null
     nullableBeeSon.json = json2
-    expect(() => (beeson.json = json2)).toThrowError(
+    expect(() => (beeson.json = json2 as any)).toThrowError(
       'BeeSon Object assertion problem at index age: Wrong value for type number (integer). Got value has type: object. Value: null',
     )
     nullableBeeSon.setIndexNullable('name', false)
@@ -55,16 +55,16 @@ describe('nullable operations on beeson', () => {
     nullableBeeSon.setIndexNullable('name', false)
     const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
-    const abiObject = nullableBeeSon.dnaManager.getDnaObject()
-    const dnaManager = DnaManager.loadDnaObject(abiObject, new Bytes(32))
-    const beesonAgain = new BeeSon({ dnaManager })
+    const abiObject = nullableBeeSon.typeSpecificationManager.getTypeSpecificationObject()
+    const typeSpecificationManager = DnaManager.loadDnaObject(abiObject, new Bytes(32))
+    const beesonAgain = new BeeSon({ typeSpecificationManager })
     beesonAgain.json = json
     beesonAgain.json = json2
     expect(beesonAgain.json).toStrictEqual(json2)
     const nullableBeeSonAgain2 = BeeSon.deserialize(beesonAgain.serialize())
     expect(nullableBeeSonAgain2.json).toStrictEqual(beesonAgain.json)
     expect(() => (beesonAgain.json = { name: 'nvm' })).toThrowError(
-      /^Given JSON object has 1 key length, when the dna defines 4 length./,
+      /^Given JSON object has 1 key length, when the typeSpecification defines 4 length./,
     )
     expect(() => (beesonAgain.json = { name: null, age: null, buddies: null, id: null })).toThrowError(
       'BeeSon Object assertion problem at index name: Wrong value for type string. Got value has type: object. Value: null',

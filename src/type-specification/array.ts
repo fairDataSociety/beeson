@@ -1,4 +1,4 @@
-import { DnaManager, Header, TypeDefinitionA } from '.'
+import { TypeSpecification, Header, TypeDefinitionA } from '.'
 import { BeeSon } from '../beeson'
 import { BitVector } from '../bitvector'
 import {
@@ -12,23 +12,23 @@ import { Bytes, encryptDecrypt, flattenBytesArray, segmentPaddingFromRight, segm
 
 const ARRAY_TYPE_DEF_LENGTH = 6
 
-export function dnaArray(dna: DnaManager<Type.array>): Uint8Array {
+export function serializeArray(typeSpecification: TypeSpecification<Type.array>): Uint8Array {
   const serializedTypeDefs: Bytes<6>[] = []
-  for (const typeDefinition of dna.typeDefinitions) {
+  for (const typeDefinition of typeSpecification.typeDefinitions) {
     serializedTypeDefs.push(
       new Bytes([
-        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeType(typeDefinition.beeSon.typeSpecificationManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
       ]),
     )
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  // 4 is the bytes length of the `dnaSegmentSize` and `flattenTypeDefs
-  const dnaSegmentSize = segmentSize(4 + flattenTypeDefs.length)
+  // 4 is the bytes length of the `typeSpecificationSegmentSize` and `flattenTypeDefs
+  const typeSpecificationSegmentSize = segmentSize(4 + flattenTypeDefs.length)
 
   const bytes = new Uint8Array([
-    ...serializeUint16(dnaSegmentSize),
-    ...serializeUint16(dna.typeDefinitions.length),
+    ...serializeUint16(typeSpecificationSegmentSize),
+    ...serializeUint16(typeSpecification.typeDefinitions.length),
     ...flattenTypeDefs,
   ])
 
@@ -37,24 +37,24 @@ export function dnaArray(dna: DnaManager<Type.array>): Uint8Array {
 
 /**
  *
- * @param data raw beeson array DNA data without the blob header
+ * @param data raw beeson array TypeSpecification data without the blob header
  * @param header blob header of the beeson data
  * @returns
  */
-export function spawnArray(
+export function deserializeArray(
   data: Uint8Array,
   header: Header<Type.array>,
-): { dnaManager: DnaManager<Type.array>; dnaByteSize: number } {
+): { typeSpecificationManager: TypeSpecification<Type.array>; typeSpecificationByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
 
   // deserialize typedefs
-  const dnaByteSize = dnaSegmentSize * 32
+  const typeSpecificationByteSize = typeSpecificationSegmentSize * 32
   const typeDefinitions: TypeDefinitionA[] = []
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
     const type = deserializeType(data.slice(offset, offset + 2) as Bytes<2>)
@@ -63,11 +63,16 @@ export function spawnArray(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its dna has to be deserialized in a different function call
-      const dnaManager = new DnaManager(header.obfuscationKey, header.version, type, null)
+      // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
+      const typeSpecificationManager = new TypeSpecification(
+        header.obfuscationKey,
+        header.version,
+        type,
+        null,
+      )
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ dnaManager: dnaManager }),
+        beeSon: new BeeSon({ typeSpecificationManager }),
       })
     } catch (e) {
       throw new Error(`Error at BeeSon array deserialization at offset ${offset}: ${(e as Error).message}`)
@@ -77,34 +82,39 @@ export function spawnArray(
   }
 
   return {
-    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.array, typeDefinitions),
-    dnaByteSize,
+    typeSpecificationManager: new TypeSpecification(
+      header.obfuscationKey,
+      header.version,
+      Type.array,
+      typeDefinitions,
+    ),
+    typeSpecificationByteSize,
   }
 }
 
-export function dnaNullableArray(dna: DnaManager<Type.nullableArray>): Uint8Array {
+export function serializeNullableArray(typeSpecification: TypeSpecification<Type.nullableArray>): Uint8Array {
   const serializedTypeDefs: Bytes<6>[] = []
-  const bv = new BitVector(dna.typeDefinitions.length)
-  for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
+  const bv = new BitVector(typeSpecification.typeDefinitions.length)
+  for (const [index, typeDefinition] of typeSpecification.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeType(typeDefinition.beeSon.typeSpecificationManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
       ]),
     )
-    if (typeDefinition.beeSon.dnaManager.nullable) {
+    if (typeDefinition.beeSon.typeSpecificationManager.nullable) {
       bv.setBit(index)
     }
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
   const bitVectorSegments = segmentPaddingFromRight(bv.bitVector)
 
-  // 4 is the bytes length of the `dnaSegmentSize` and `flattenTypeDefs
-  const dnaSegmentSize = segmentSize(4 + flattenTypeDefs.length + bitVectorSegments.length)
+  // 4 is the bytes length of the `typeSpecificationSegmentSize` and `flattenTypeDefs
+  const typeSpecificationSegmentSize = segmentSize(4 + flattenTypeDefs.length + bitVectorSegments.length)
 
   const bytes = new Uint8Array([
-    ...serializeUint16(dnaSegmentSize),
-    ...serializeUint16(dna.typeDefinitions.length),
+    ...serializeUint16(typeSpecificationSegmentSize),
+    ...serializeUint16(typeSpecification.typeDefinitions.length),
     ...flattenTypeDefs,
     ...bitVectorSegments,
   ])
@@ -114,18 +124,18 @@ export function dnaNullableArray(dna: DnaManager<Type.nullableArray>): Uint8Arra
 
 /**
  *
- * @param data raw beeson array DNA data without the blob header
+ * @param data raw beeson array TypeSpecification data without the blob header
  * @param header blob header of the beeson data
  * @returns
  */
-export function spawnNullableArray(
+export function deserializeNullableArray(
   data: Uint8Array,
   header: Header<Type.nullableArray>,
-): { dnaManager: DnaManager<Type.nullableArray>; dnaByteSize: number } {
+): { typeSpecificationManager: TypeSpecification<Type.nullableArray>; typeSpecificationByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -136,7 +146,7 @@ export function spawnNullableArray(
   )
 
   // deserialize typedefs
-  const dnaByteSize = dnaSegmentSize * 32
+  const typeSpecificationByteSize = typeSpecificationSegmentSize * 32
   const typeDefinitions: TypeDefinitionA[] = []
   let i = 0
   while (offset < ARRAY_TYPE_DEF_LENGTH * flattenTypeDefsLength) {
@@ -146,8 +156,8 @@ export function spawnNullableArray(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its dna has to be deserialized in a different function call
-      const dnaManager = new DnaManager(
+      // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
+      const typeSpecificationManager = new TypeSpecification(
         header.obfuscationKey,
         header.version,
         type,
@@ -156,7 +166,7 @@ export function spawnNullableArray(
       )
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ dnaManager: dnaManager }),
+        beeSon: new BeeSon({ typeSpecificationManager: typeSpecificationManager }),
       })
     } catch (e) {
       throw new Error(`Error at BeeSon array deserialization at offset ${offset}: ${(e as Error).message}`)
@@ -167,7 +177,12 @@ export function spawnNullableArray(
   }
 
   return {
-    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.nullableArray, typeDefinitions),
-    dnaByteSize,
+    typeSpecificationManager: new TypeSpecification(
+      header.obfuscationKey,
+      header.version,
+      Type.nullableArray,
+      typeDefinitions,
+    ),
+    typeSpecificationByteSize: typeSpecificationByteSize,
   }
 }

@@ -1,4 +1,4 @@
-import { DnaManager, Header, TypeDefinitionO } from '.'
+import { TypeSpecification, Header, TypeDefinitionO } from '.'
 import { BeeSon } from '../beeson'
 import { Type, assertBeeSonType, serializeType, deserializeType } from '../types'
 import { BitVector } from '../bitvector'
@@ -13,32 +13,34 @@ import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } 
 
 const OBJECT_TYPE_DEF_LENGTH = 8
 
-export function dnaNullableObject(dna: DnaManager<Type.nullableObject>): Uint8Array {
-  const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
+export function typeSpecificationNullableObject(
+  typeSpecification: TypeSpecification<Type.nullableObject>,
+): Uint8Array {
+  const markers = typeSpecification.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
-  const bv = new BitVector(dna.typeDefinitions.length)
+  const bv = new BitVector(typeSpecification.typeDefinitions.length)
 
   const serializedTypeDefs: Bytes<8>[] = []
-  for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
+  for (const [index, typeDefinition] of typeSpecification.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeType(typeDefinition.beeSon.typeSpecificationManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
     )
-    if (typeDefinition.beeSon.dnaManager.nullable) {
+    if (typeDefinition.beeSon.typeSpecificationManager.nullable) {
       bv.setBit(index)
     }
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  // 6 is the bytes length of the `dnaSegmentSize`, `flattenTypeDefs` and the `serializedMarkers.length`
-  const dnaSegmentSize = segmentSize(
+  // 6 is the bytes length of the `typeSpecificationSegmentSize`, `flattenTypeDefs` and the `serializedMarkers.length`
+  const typeSpecificationSegmentSize = segmentSize(
     6 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length + bv.bitVector.length,
   )
 
   const bytes = new Uint8Array([
-    ...serializeUint16(dnaSegmentSize),
+    ...serializeUint16(typeSpecificationSegmentSize),
     ...serializeUint16(serializedTypeDefs.length),
     ...serializeUint16(serializedMarkers.serializedMarkers.length),
     ...flattenBytesArray(serializedTypeDefs),
@@ -49,14 +51,14 @@ export function dnaNullableObject(dna: DnaManager<Type.nullableObject>): Uint8Ar
   return bytes
 }
 
-export function spawnNullableObject(
+export function loadNullableObject(
   data: Uint8Array,
   header: Header<Type.nullableObject>,
-): { dnaManager: DnaManager<Type.nullableObject>; dnaByteSize: number } {
+): { typeSpecificationManager: TypeSpecification<Type.nullableObject>; typeSpecificationByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -69,7 +71,7 @@ export function spawnNullableObject(
   )
 
   // deserialize typedefs
-  const dnaByteSize = dnaSegmentSize * 32
+  const typeSpecificationByteSize = typeSpecificationSegmentSize * 32
   const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
   const typeDefinitions: TypeDefinitionO[] = []
   let i = 0
@@ -87,8 +89,8 @@ export function spawnNullableObject(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its dna has to be deserialized in a different function call
-      const dnaManager = new DnaManager(
+      // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
+      const typeSpecificationManager = new TypeSpecification(
         header.obfuscationKey,
         header.version,
         type,
@@ -97,7 +99,7 @@ export function spawnNullableObject(
       )
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ dnaManager }),
+        beeSon: new BeeSon({ typeSpecificationManager: typeSpecificationManager }),
         marker,
       })
     } catch (e) {
@@ -109,25 +111,30 @@ export function spawnNullableObject(
   }
 
   return {
-    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.nullableObject, typeDefinitions),
-    dnaByteSize,
+    typeSpecificationManager: new TypeSpecification(
+      header.obfuscationKey,
+      header.version,
+      Type.nullableObject,
+      typeDefinitions,
+    ),
+    typeSpecificationByteSize,
   }
 }
 
-export function spawnObject(
+export function loadObject(
   data: Uint8Array,
   header: Header<Type.object>,
-): { dnaManager: DnaManager<Type.object>; dnaByteSize: number } {
+): { typeSpecificationManager: TypeSpecification<Type.object>; typeSpecificationByteSize: number } {
   encryptDecrypt(header.obfuscationKey, data)
 
   let offset = 0
-  const dnaSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
+  const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
   const flattenTypeDefsLength = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
 
   // deserialize typedefs
-  const dnaByteSize = dnaSegmentSize * 32
+  const typeSpecificationByteSize = typeSpecificationSegmentSize * 32
   const startMarkerByteIndex = offset + flattenTypeDefsLength * OBJECT_TYPE_DEF_LENGTH
   const typeDefinitions: TypeDefinitionO[] = []
   let markerOffset = 0
@@ -144,11 +151,16 @@ export function spawnObject(
     try {
       assertBeeSonType(type)
 
-      // if deserialized type is container type, then its dna has to be deserialized in a different function call
-      const dnaManager = new DnaManager(header.obfuscationKey, header.version, type, null)
+      // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
+      const typeSpecificationManager = new TypeSpecification(
+        header.obfuscationKey,
+        header.version,
+        type,
+        null,
+      )
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ dnaManager }),
+        beeSon: new BeeSon({ typeSpecificationManager: typeSpecificationManager }),
         marker,
       })
     } catch (e) {
@@ -159,31 +171,38 @@ export function spawnObject(
   }
 
   return {
-    dnaManager: new DnaManager(header.obfuscationKey, header.version, Type.object, typeDefinitions),
-    dnaByteSize,
+    typeSpecificationManager: new TypeSpecification(
+      header.obfuscationKey,
+      header.version,
+      Type.object,
+      typeDefinitions,
+    ),
+    typeSpecificationByteSize,
   }
 }
 
-export function dnaObject(dna: DnaManager<Type.object>): Uint8Array {
-  const markers = dna.typeDefinitions.map(typeDef => typeDef.marker)
+export function typeSpecificationObject(typeSpecification: TypeSpecification<Type.object>): Uint8Array {
+  const markers = typeSpecification.typeDefinitions.map(typeDef => typeDef.marker)
   const serializedMarkers = serializeMarkers(markers)
 
   const serializedTypeDefs: Bytes<8>[] = []
-  for (const [index, typeDefinition] of dna.typeDefinitions.entries()) {
+  for (const [index, typeDefinition] of typeSpecification.typeDefinitions.entries()) {
     serializedTypeDefs.push(
       new Bytes([
-        ...serializeType(typeDefinition.beeSon.dnaManager.type),
+        ...serializeType(typeDefinition.beeSon.typeSpecificationManager.type),
         ...serializeUint32(typeDefinition.segmentLength),
         ...serializedMarkers.serializedMarkerLengths[index],
       ]),
     )
   }
   const flattenTypeDefs = flattenBytesArray(serializedTypeDefs)
-  // 4 is the bytes length of the `dnaSegmentSize` and `flattenTypeDefs
-  const dnaSegmentSize = segmentSize(4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length)
+  // 4 is the bytes length of the `typeSpecificationSegmentSize` and `flattenTypeDefs
+  const typeSpecificationSegmentSize = segmentSize(
+    4 + flattenTypeDefs.length + serializedMarkers.serializedMarkers.length,
+  )
 
   const bytes = new Uint8Array([
-    ...serializeUint16(dnaSegmentSize),
+    ...serializeUint16(typeSpecificationSegmentSize),
     ...serializeUint16(serializedTypeDefs.length),
     ...flattenBytesArray(serializedTypeDefs),
     ...serializedMarkers.serializedMarkers,
