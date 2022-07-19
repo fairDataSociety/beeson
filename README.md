@@ -72,7 +72,7 @@ Every BeeSon has to start with a serialised header that consists of
 ┌────────────────────────────────┐
 │         Header <64 byte>       │
 ├────────────────────────────────┤
-│             (TypeScpecification)              │
+│       (TypeScpecification)     │
 ├────────────────────────────────┤
 │       Data Implementation      │
 └────────────────────────────────┘
