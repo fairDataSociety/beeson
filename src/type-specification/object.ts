@@ -9,7 +9,7 @@ import {
   serializeUint32,
 } from '../marshalling/number-serializer'
 import { serializeString } from '../marshalling/string-seralizer'
-import { Bytes, bytesToString, encryptDecrypt, flattenBytesArray, segmentSize } from '../utils'
+import { Bytes, bytesToString, flattenBytesArray, segmentSize } from '../utils'
 
 const OBJECT_TYPE_DEF_LENGTH = 8
 
@@ -51,12 +51,10 @@ export function typeSpecificationNullableObject(
   return bytes
 }
 
-export function loadNullableObject(
+export function deserializeNullableObject(
   data: Uint8Array,
   header: Header<Type.nullableObject>,
 ): { typeSpecificationManager: TypeSpecification<Type.nullableObject>; typeSpecificationByteSize: number } {
-  encryptDecrypt(header.obfuscationKey, data)
-
   let offset = 0
   const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -121,12 +119,10 @@ export function loadNullableObject(
   }
 }
 
-export function loadObject(
+export function deserializeObject(
   data: Uint8Array,
   header: Header<Type.object>,
 ): { typeSpecificationManager: TypeSpecification<Type.object>; typeSpecificationByteSize: number } {
-  encryptDecrypt(header.obfuscationKey, data)
-
   let offset = 0
   const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2

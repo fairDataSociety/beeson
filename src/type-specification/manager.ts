@@ -1,5 +1,13 @@
 import { BeeSon } from '../beeson'
-import { assertBeeSonType, deserializeType, JsonValue, serializeType, Type, ValueType } from '../types'
+import {
+  assertBeeSonType,
+  deserializeType,
+  JsonValue,
+  serializeType,
+  Type,
+  ValueType,
+  ContainerTypes,
+} from '../types'
 import {
   assertArray,
   assertBigInt,
@@ -27,8 +35,8 @@ import {
 } from '../marshalling/address-serializer'
 import { deserializeArray, deserializeNullableArray, serializeArray, serializeNullableArray } from './array'
 import {
-  loadNullableObject,
-  loadObject,
+  deserializeNullableObject,
+  deserializeObject,
   typeSpecificationNullableObject,
   typeSpecificationObject,
 } from './object'
@@ -314,6 +322,13 @@ export class TypeSpecification<T extends Type> {
     return new Bytes([...this.obfuscationKey, ...data])
   }
 
+  /**
+   * Initialize TypeManager class
+   *
+   * @param data DNA datablob (header + typeSpecification)
+   * @param header BeeSon header
+   * @returns typeSpecificationManager with the processed bytes length
+   */
   public static deserialize<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
@@ -337,7 +352,7 @@ export class TypeSpecification<T extends Type> {
         processedBytes: processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = loadObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = deserializeObject(data, header)
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
@@ -354,7 +369,7 @@ export class TypeSpecification<T extends Type> {
         processedBytes: processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = loadNullableObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = deserializeNullableObject(data, header)
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
@@ -665,6 +680,17 @@ export function isTypeSpecificaitonManagerType<T extends Type>(
   type: T,
 ): typeSpecificationManager is TypeSpecification<T> {
   return typeSpecificationManager.type === type
+}
+
+export function isTypeManagerContainerType(
+  typeManager: TypeSpecification<Type>,
+): typeManager is TypeSpecification<ContainerTypes> {
+  return (
+    isTypeSpecificaitonManagerType(typeManager, Type.array) ||
+    isTypeSpecificaitonManagerType(typeManager, Type.object) ||
+    isTypeSpecificaitonManagerType(typeManager, Type.nullableArray) ||
+    isTypeSpecificaitonManagerType(typeManager, Type.nullableObject)
+  )
 }
 
 function isHeaderType<T extends Type>(header: Header<Type>, type: T): header is Header<T> {

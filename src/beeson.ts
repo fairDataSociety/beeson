@@ -4,6 +4,7 @@ import {
   Header,
   isTypeSpecificaitonManagerType,
   TypeDefinitionO,
+  isTypeManagerContainerType,
 } from './type-specification'
 import {
   deserializeSwarmCac,
@@ -23,6 +24,7 @@ import {
 } from './marshalling/number-serializer'
 import { deserializeString, serializeString } from './marshalling/string-seralizer'
 import {
+  ContainerTypes,
   isContainerType,
   JsonMap,
   JsonValue,
@@ -151,44 +153,35 @@ export class BeeSon<T extends JsonValue> {
 
   public serialize(options?: { withoutBlobHeader?: boolean }): Uint8Array {
     const withoutBlobHeader = options?.withoutBlobHeader || false
-    const typeSpecificationBytes = this.serializeDna(withoutBlobHeader)
+    const dna = this.serializeDna(withoutBlobHeader)
 
-    if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.array) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.object) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
-    ) {
-      const containerBytes: Uint8Array[] = [typeSpecificationBytes]
-      if (
-        isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) ||
-        isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
-      ) {
-        containerBytes.push(this.serializeContainerElementsNulls())
-        for (const typeDefition of this._typeSpecification.typeDefinitions) {
-          if (!(typeDefition.beeSon._typeSpecification.nullable && typeDefition.beeSon.json === null)) {
-            containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
-          }
-        }
-      } else {
-        for (const typeDefition of this._typeSpecification.typeDefinitions) {
-          containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
-        }
-      }
+    const dataImplementation = this.serializeData()
+    // if blob header has to present then it has to obfuscate the data implementation
+    // if (!withoutBlobHeader) encryptDecrypt(this._typeSpecification.obfuscationKey, dataImplementation)
 
-      return flattenBytesArray(containerBytes)
-    }
-
-    return new Uint8Array([...typeSpecificationBytes, ...this.serializeData()])
+    return new Uint8Array([...dna, ...dataImplementation])
   }
 
   /** deserialise unpacked data */
   public static deserialize(data: Uint8Array, header?: Header<Type>): BeeSon<JsonValue> {
+    const definedHeader = Boolean(header)
     const { typeSpecificationManager, processedBytes } = TypeSpecification.deserialize(data, header)
-    const beeSon = new BeeSon({ typeSpecificationManager: typeSpecificationManager })
-    beeSon.deserializeData(data.slice(processedBytes))
+    const beeSon = new BeeSon({ typeSpecificationManager })
+    const dataImplementation = data.slice(processedBytes)
+    // if header object is not passed, then the data implementation has to be encrypted.
+    if (!definedHeader) encryptDecrypt(typeSpecificationManager.obfuscationKey, dataImplementation)
+    beeSon.deserializeData(dataImplementation)
 
     return beeSon
+  }
+
+  public serializeSuperBeeSon(): Uint8Array {
+    if (!isTypeManagerContainerType(this._typeSpecification)) {
+      throw new Error(`Handled BeeSon is not a container type. It has type ${this._typeSpecification.type}`)
+    }
+
+    // TODO
+    return new Uint8Array([0])
   }
 
   private serializeDna(withoutBlobHeader: boolean): Uint8Array {
@@ -197,7 +190,6 @@ export class BeeSon<T extends JsonValue> {
 
   public deserializeData(data: Uint8Array): void {
     const decryptedData = new Uint8Array([...data])
-    encryptDecrypt(this._typeSpecification.obfuscationKey, decryptedData)
     // numbers
     if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.float32)) {
       this.json = deserializeFloat(
@@ -257,89 +249,44 @@ export class BeeSon<T extends JsonValue> {
     }
     // numbers
     if (isBeeSonType(this, Type.float32)) {
-      const bytes = segmentPaddingFromLeft(serializeFloat(this._json, Type.float32))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serializeFloat(this._json, Type.float32))
     }
     if (isBeeSonType(this, Type.float64)) {
-      const bytes = segmentPaddingFromLeft(serializeFloat(this._json, Type.float64))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serializeFloat(this._json, Type.float64))
     }
     if (isBeeSonType(this, Type.int8)) {
-      const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int8))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serliazeInt(this._json, Type.int8))
     }
     if (isBeeSonType(this, Type.uint8)) {
-      const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.uint8))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serliazeInt(this._json, Type.uint8))
     }
     if (isBeeSonType(this, Type.int16)) {
-      const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int16))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serliazeInt(this._json, Type.int16))
     }
     if (isBeeSonType(this, Type.int32)) {
-      const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int32))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serliazeInt(this._json, Type.int32))
     }
     if (isBeeSonType(this, Type.int64)) {
-      const bytes = segmentPaddingFromLeft(serliazeInt(this._json, Type.int64))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromLeft(serliazeInt(this._json, Type.int64))
     }
     // string
     if (isBeeSonType(this, Type.string)) {
-      const bytes = segmentPaddingFromRight(serializeString(this._json))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromRight(serializeString(this._json))
     }
     // boolean
     if (isBeeSonType(this, Type.boolean)) {
-      const bytes = segmentPaddingFromRight(serializeBoolean(this._json))
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return segmentPaddingFromRight(serializeBoolean(this._json))
     }
     // misc types
     if (isBeeSonType(this, Type.swarmCac)) {
-      const bytes = serializeSwarmCac(this._json as SwarmManifestCid)
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return serializeSwarmCac(this._json as SwarmManifestCid)
     }
     if (isBeeSonType(this, Type.swarmSoc)) {
-      const bytes = serializeSwarmSoc(this.json as SwarmFeedCid)
-      encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-      return bytes
+      return serializeSwarmSoc(this.json as SwarmFeedCid)
     }
     // container types
-    if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.object) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.array)
-    ) {
+    if (isTypeManagerContainerType(this._typeSpecification)) {
       return this.serializeContainerElementsData()
-    }
-    if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)
-    ) {
-      return new Uint8Array([
-        ...this.serializeContainerElementsNulls(),
-        ...this.serializeContainerElementsData(),
-      ])
     }
 
     throw new NotSupportedTypeError(this.typeSpecificationManager.type)
@@ -364,26 +311,31 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private serializeContainerElementsData(): Uint8Array {
-    if (
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.object) &&
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.array) &&
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) &&
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
-    ) {
+    if (!isTypeManagerContainerType(this._typeSpecification)) {
       throw new Error(
         `BeeSon is not a (nullable) container type. it has type: ${this.typeSpecificationManager.type}`,
       )
     }
-    const objectValuesBytes: Uint8Array[] = []
-    for (const typeDefinition of this._typeSpecification.typeDefinitions) {
-      objectValuesBytes.push(typeDefinition.beeSon.serialize({ withoutBlobHeader: true }))
+    const containerBytes: Uint8Array[] = []
+    if (
+      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) ||
+      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
+    ) {
+      containerBytes.push(this.serializeContainerElementsNulls()) // nulls array is serialized here
+
+      for (const typeDefition of this._typeSpecification.typeDefinitions) {
+        if (!(typeDefition.beeSon._typeSpecification.nullable && typeDefition.beeSon.json === null)) {
+          containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+        }
+      }
+    } else {
+      for (const typeDefition of (this._typeSpecification as TypeSpecification<ContainerTypes>)
+        .typeDefinitions) {
+        containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+      }
     }
 
-    // objectValuesBytes already 32 bytes padded
-    const bytes = flattenBytesArray(objectValuesBytes)
-    encryptDecrypt(this._typeSpecification.obfuscationKey, bytes)
-
-    return bytes
+    return flattenBytesArray(containerBytes)
   }
 
   /** Serialize Null bitvector for nullable containers in the data implementation */
@@ -415,10 +367,7 @@ export class BeeSon<T extends JsonValue> {
       }
     }
 
-    const vektorSegments = segmentPaddingFromRight(bv.bitVector)
-    encryptDecrypt(this._typeSpecification.obfuscationKey, vektorSegments)
-
-    return vektorSegments
+    return segmentPaddingFromRight(bv.bitVector)
   }
 
   /** Deserialize Null bitvector for nullable containers in the data implementation */

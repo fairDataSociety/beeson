@@ -18,6 +18,7 @@ export enum Type {
   int16 = 97,
   int32 = 113,
   int64 = 121,
+  // superBeeSon = 4096, -> special case, handled differently
   array = 8192,
   nullableArray = 8448,
   object = 16384,
@@ -25,6 +26,8 @@ export enum Type {
   swarmCac = 32768,
   swarmSoc = 33024,
 }
+
+export const SUPER_BEESON_TYPE = 4096
 
 export function serializeType(type: Type): Bytes<2> {
   return serializeUint16(type)
@@ -34,9 +37,9 @@ export function deserializeType(bytes: Bytes<2>): Type {
   return deserializeUint16(bytes)
 }
 
-export type ContainerTypes = Type.array | Type.object
-
+export type StrictContainerTypes = Type.array | Type.object
 export type NullableContainerTypes = Type.nullableArray | Type.nullableObject
+export type ContainerTypes = Type.array | Type.object | Type.nullableArray | Type.nullableObject
 export type NullableContainerType<T extends Type.array | Type.object> = T extends Type.array
   ? Type.nullableArray
   : T extends Type.object

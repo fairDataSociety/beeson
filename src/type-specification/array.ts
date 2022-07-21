@@ -8,7 +8,7 @@ import {
   serializeUint32,
 } from '../marshalling/number-serializer'
 import { assertBeeSonType, deserializeType, serializeType, Type } from '../types'
-import { Bytes, encryptDecrypt, flattenBytesArray, segmentPaddingFromRight, segmentSize } from '../utils'
+import { Bytes, flattenBytesArray, segmentPaddingFromRight, segmentSize } from '../utils'
 
 const ARRAY_TYPE_DEF_LENGTH = 6
 
@@ -45,8 +45,6 @@ export function deserializeArray(
   data: Uint8Array,
   header: Header<Type.array>,
 ): { typeSpecificationManager: TypeSpecification<Type.array>; typeSpecificationByteSize: number } {
-  encryptDecrypt(header.obfuscationKey, data)
-
   let offset = 0
   const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
@@ -132,8 +130,6 @@ export function deserializeNullableArray(
   data: Uint8Array,
   header: Header<Type.nullableArray>,
 ): { typeSpecificationManager: TypeSpecification<Type.nullableArray>; typeSpecificationByteSize: number } {
-  encryptDecrypt(header.obfuscationKey, data)
-
   let offset = 0
   const typeSpecificationSegmentSize = deserializeUint16(data.slice(offset, offset + 2) as Bytes<2>)
   offset += 2
