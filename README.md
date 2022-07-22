@@ -30,6 +30,7 @@ The following types are possible _currently_ to be serialized in BeeSon:
 | int16 | 97 | 00000000 01100001 | number |
 | int32 | 113 | 00000000 01110001 | number |
 | int64 | 121 | 00000000 01111001 | number |
+| superBeeSon | 4096 | 00010000 00000000 | container type |
 | array | 8192 | 00100000 00000000 | array |
 | nullableArray | 8448 | 00100001 00000000 | array  |
 | object | 16384 | 01000000 00000000 | object |
@@ -40,6 +41,9 @@ The following types are possible _currently_ to be serialized in BeeSon:
 The library defaults the JSON types to the followings:
 * `number` (when it does not have decimal value): `int32`
 * `number` (when it does have decimal value): `float32`
+
+The `superBeeSon` type is a notation for a container type data implementation (e.g. array or object) where the type specification is referenced with a Swarm hash.
+This reserves only 3 segments before the data implementation so that the on-chain identification of the data-blob can be really cheap.
 
 The `swarmCac` and `swarmSoc` are misc types that are deserialized as regexed strings according to the rules of [Swarm CIDs](https://github.com/ethersphere/swarm-cid-js/). Additionally, the serialization can interpret the CID object used in `swarm-cid-js`.
 
