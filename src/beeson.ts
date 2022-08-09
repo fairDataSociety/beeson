@@ -30,6 +30,7 @@ import {
   JsonValue,
   NotSupportedTypeError,
   Nullable,
+  StorageLoader,
   Type,
   TypeValue,
   ValueType,
@@ -39,6 +40,7 @@ import {
   encryptDecrypt,
   flattenBytesArray,
   isNull,
+  paddingToSegment,
   segmentPaddingFromLeft,
   segmentPaddingFromRight,
   segmentSize,
@@ -92,6 +94,14 @@ export class BeeSon<T extends JsonValue> {
   }
 
   // Setters/getters
+
+  public get superBeeSon(): boolean {
+    return this._typeSpecification.superBeeSon
+  }
+
+  public set superBeeSon(value: boolean) {
+    this._typeSpecification.superBeeSon = value
+  }
 
   /** TypeSpecification manager instance of the BeeSon value */
   public get typeSpecificationManager(): TypeSpecification<ValueType<T>> {
@@ -163,32 +173,39 @@ export class BeeSon<T extends JsonValue> {
   }
 
   /** deserialise unpacked data */
-  public static deserialize(data: Uint8Array, header?: Header<Type>): BeeSon<JsonValue> {
+  public static async deserialize(
+    data: Uint8Array,
+    header?: Header<Type>,
+    storageLoader?: StorageLoader,
+  ): Promise<BeeSon<JsonValue>> {
     const definedHeader = Boolean(header)
-    const { typeSpecificationManager, processedBytes } = TypeSpecification.deserialize(data, header)
+    const { typeSpecificationManager, processedBytes } = await TypeSpecification.deserialize(
+      data,
+      header,
+      storageLoader,
+    )
     const beeSon = new BeeSon({ typeSpecificationManager })
     const dataImplementation = data.slice(processedBytes)
     // if header object is not passed, then the data implementation has to be encrypted.
     if (!definedHeader) encryptDecrypt(typeSpecificationManager.obfuscationKey, dataImplementation)
-    beeSon.deserializeData(dataImplementation)
+    await beeSon.deserializeData(dataImplementation)
 
-    return beeSon
-  }
-
-  public serializeSuperBeeSon(): Uint8Array {
-    if (!isTypeManagerContainerType(this._typeSpecification)) {
-      throw new Error(`Handled BeeSon is not a container type. It has type ${this._typeSpecification.type}`)
+    try {
+      if (beeSon.json === 'undefined') throw Error()
+    } catch (e) {
+      throw new Error(
+        `Data Implementation deserialization is impossible with type ${beeSon.typeSpecificationManager.type}`,
+      )
     }
 
-    // TODO
-    return new Uint8Array([0])
+    return beeSon
   }
 
   private serializeDna(withoutBlobHeader: boolean): Uint8Array {
     return this._typeSpecification.serialize(withoutBlobHeader)
   }
 
-  public deserializeData(data: Uint8Array): void {
+  public async deserializeData(data: Uint8Array) {
     const decryptedData = new Uint8Array([...data])
     // numbers
     if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.float32)) {
@@ -229,13 +246,13 @@ export class BeeSon<T extends JsonValue> {
     }
     // container types
     else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.object)) {
-      this.deserializeObject(decryptedData)
+      await this.deserializeObject(decryptedData)
     } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.array)) {
-      this.deserializeArray(decryptedData)
+      await this.deserializeArray(decryptedData)
     } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)) {
-      this.deserializeNullableArray(decryptedData)
+      await this.deserializeNullableArray(decryptedData)
     } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
-      this.deserializeNullableObject(decryptedData)
+      await this.deserializeNullableObject(decryptedData)
     }
   }
 
@@ -325,13 +342,23 @@ export class BeeSon<T extends JsonValue> {
 
       for (const typeDefition of this._typeSpecification.typeDefinitions) {
         if (!(typeDefition.beeSon._typeSpecification.nullable && typeDefition.beeSon.json === null)) {
-          containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+          containerBytes.push(
+            paddingToSegment(
+              typeDefition.segmentLength,
+              typeDefition.beeSon.serialize({ withoutBlobHeader: true }),
+            ),
+          )
         }
       }
     } else {
       for (const typeDefition of (this._typeSpecification as TypeSpecification<ContainerTypes>)
         .typeDefinitions) {
-        containerBytes.push(typeDefition.beeSon.serialize({ withoutBlobHeader: true }))
+        containerBytes.push(
+          paddingToSegment(
+            typeDefition.segmentLength,
+            typeDefition.beeSon.serialize({ withoutBlobHeader: true }),
+          ),
+        )
       }
     }
 
@@ -389,7 +416,7 @@ export class BeeSon<T extends JsonValue> {
     return new BitVector(this._typeSpecification.typeDefinitions.length, bitVectorBytes)
   }
 
-  private deserializeObject(data: Uint8Array) {
+  private async deserializeObject(data: Uint8Array) {
     if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.object)) {
       throw new Error(`The TypeSpecification is not a ${Type.object}`)
     }
@@ -400,8 +427,8 @@ export class BeeSon<T extends JsonValue> {
       const key = typeDef.marker
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type)) {
-        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+        typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
           // typeSpecificationManager type/obfuscationkey and else are set already on typeSpecification's deserialisation
           obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
@@ -409,7 +436,7 @@ export class BeeSon<T extends JsonValue> {
         })
         obj[key] = typeDef.beeSon.json
       } else {
-        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        await typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
         obj[key] = typeDef.beeSon.json
       }
       segmentOffset += typeDef.segmentLength || 0
@@ -417,7 +444,7 @@ export class BeeSon<T extends JsonValue> {
     this.json = obj as T
   }
 
-  private deserializeNullableObject(data: Uint8Array) {
+  private async deserializeNullableObject(data: Uint8Array) {
     if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
       throw new Error(`The TypeSpecification is not a ${Type.object}`)
     }
@@ -435,8 +462,8 @@ export class BeeSon<T extends JsonValue> {
       }
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type)) {
-        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+        typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
           // typeSpecificationManager type/obfuscationkey and else are set already on typeSpecification's deserialisation
           obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
@@ -444,7 +471,7 @@ export class BeeSon<T extends JsonValue> {
         })
         obj[key] = typeDef.beeSon.json
       } else {
-        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        await typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
         obj[key] = typeDef.beeSon.json
       }
       segmentOffset += typeDef.segmentLength || 0
@@ -452,7 +479,7 @@ export class BeeSon<T extends JsonValue> {
     this.json = obj as T
   }
 
-  private deserializeNullableArray(data: Uint8Array) {
+  private async deserializeNullableArray(data: Uint8Array) {
     if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)) {
       throw new Error(`The TypeSpecification is not a ${Type.object}`)
     }
@@ -470,15 +497,15 @@ export class BeeSon<T extends JsonValue> {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type)) {
-        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+        typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
           obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
-        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        await typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
         arr.push(typeDef.beeSon.json)
       }
       segmentOffset += typeDef.segmentLength || 0
@@ -486,7 +513,7 @@ export class BeeSon<T extends JsonValue> {
     this.json = arr as T
   }
 
-  private deserializeArray(data: Uint8Array) {
+  private async deserializeArray(data: Uint8Array) {
     if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.array)) {
       throw new Error(`The TypeSpecification is not a ${Type.object}`)
     }
@@ -496,15 +523,15 @@ export class BeeSon<T extends JsonValue> {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type)) {
-        typeDef.beeSon = BeeSon.deserialize(data.slice(offset, endOffset), {
+      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+        typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
           obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
-        typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
+        await typeDef.beeSon.deserializeData(data.slice(offset, endOffset))
         arr.push(typeDef.beeSon.json)
       }
       segmentOffset += typeDef.segmentLength || 0

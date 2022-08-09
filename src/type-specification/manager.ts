@@ -7,6 +7,9 @@ import {
   Type,
   ValueType,
   ContainerTypes,
+  StorageLoader,
+  SUPER_BEESON_TYPE,
+  isReference,
 } from '../types'
 import {
   assertArray,
@@ -37,9 +40,10 @@ import { deserializeArray, deserializeNullableArray, serializeArray, serializeNu
 import {
   deserializeNullableObject,
   deserializeObject,
-  typeSpecificationNullableObject,
-  typeSpecificationObject,
+  serializeNullableObject,
+  serializeObject,
 } from './object'
+import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 
 export const HEADER_BYTE_LENGTH = 64
 const BEESON_HEADER_ID = 1
@@ -133,13 +137,18 @@ type NullableContainerDnaManager<T extends Type> = T extends Type.array
   : never
 
 export class TypeSpecification<T extends Type> {
+  /**
+   * The serialisation will happen with the DNA referenced short version instead of serializing the typeSpecificaiton
+   * OR the deserialization happened from DNA implementation
+   */
+  public superBeeSon = false
   constructor(
     public obfuscationKey: Bytes<32>,
     private _version: Version,
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
     /** if the JSONValue is nullable according to its parent container's field defintion */
-    public readonly nullable = false,
+    public nullable = false,
   ) {}
 
   public get version(): Version {
@@ -292,21 +301,40 @@ export class TypeSpecification<T extends Type> {
   /** `withoutBlobHeader` used mainly at container types */
   public serialize(withoutBlobHeader = false): Uint8Array {
     const header = withoutBlobHeader ? new Uint8Array() : this.typeSpecificationHeader()
+
+    // if the serialization is not root object and it is a superbeeson, there is no need for typespec
+    if (withoutBlobHeader && this.superBeeSon) {
+      return new Uint8Array()
+    }
+
     let typeSpecification: Uint8Array
 
     if (isTypeSpecificaitonManagerType(this, Type.array)) {
       typeSpecification = serializeArray(this as TypeSpecification<Type.array>)
     } else if (this._type === Type.object) {
-      typeSpecification = typeSpecificationObject(this as TypeSpecification<Type.object>)
+      typeSpecification = serializeObject(this as TypeSpecification<Type.object>)
     } else if (this._type === Type.nullableArray) {
       typeSpecification = serializeNullableArray(this as TypeSpecification<Type.nullableArray>)
     } else if (this._type === Type.nullableObject) {
-      typeSpecification = typeSpecificationNullableObject(this as TypeSpecification<Type.nullableObject>)
+      typeSpecification = serializeNullableObject(this as TypeSpecification<Type.nullableObject>)
     } else {
+      // cannot be superBeeson if the type is not containerType
       return header // no padding required
     }
     typeSpecification = segmentPaddingFromRight(typeSpecification)
     encryptDecrypt(this.obfuscationKey, typeSpecification)
+
+    // in case of SuperBeeSon only the typespecification's BMT address will be returned.
+    if (!withoutBlobHeader && this.superBeeSon) {
+      this.superBeeSon = false
+      const superBeeSonHeader = this.typeSpecificationHeader()
+      this.superBeeSon = true
+      const dnaReference = makeChunkedFile(
+        new Uint8Array([...superBeeSonHeader, ...typeSpecification]),
+      ).address()
+
+      return new Uint8Array([...header, ...dnaReference])
+    }
 
     return new Uint8Array([...header, ...typeSpecification])
   }
@@ -315,7 +343,7 @@ export class TypeSpecification<T extends Type> {
     const data = new Uint8Array([
       ...serializeVersion(this._version),
       ...new Uint8Array(26),
-      ...serializeType(this._type),
+      ...serializeType(this.superBeeSon ? SUPER_BEESON_TYPE : this._type),
     ]) // should be 32 bytes
     encryptDecrypt(this.obfuscationKey, data)
 
@@ -329,51 +357,86 @@ export class TypeSpecification<T extends Type> {
    * @param header BeeSon header
    * @returns typeSpecificationManager with the processed bytes length
    */
-  public static deserialize<T extends Type>(
+  public static async deserialize<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
-  ): { typeSpecificationManager: TypeSpecification<T>; processedBytes: number } {
+    storageLoader?: StorageLoader,
+  ): Promise<{ typeSpecificationManager: TypeSpecification<T>; processedBytes: number }> {
     let processedBytes = 0
+    const headerIsPredefined = Boolean(header)
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
-      header = TypeSpecification.deserializeHeader(data.slice(0, 64) as Bytes<64>) as Header<T>
-      data = data.slice(64)
-      processedBytes = 64
+      header = TypeSpecification.deserializeHeader(
+        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<64>,
+      ) as Header<T>
+      data = data.slice(HEADER_BYTE_LENGTH)
+      processedBytes = HEADER_BYTE_LENGTH
+    }
+
+    // SuperBeeSon deserialisation that override data for dna
+    // if header is not defined in the parameter, it is the root level
+    const isRootSuperBeeSon = !headerIsPredefined && isHeaderType(header!, SUPER_BEESON_TYPE)
+    if (isRootSuperBeeSon) {
+      const typeSepRef = data.slice(0, SEGMENT_SIZE)
+      if (!isReference(typeSepRef)) {
+        throw new Error(
+          `TypeManager deserialization error: header is SuperBeeSonType but its payload is not a Swarm Reference`,
+        )
+      }
+      if (!storageLoader) {
+        throw new Error('StorageLoader is not defined on SuperBeeSonType deserialisation')
+      }
+
+      data = await storageLoader(typeSepRef)
+      //TODO check whether the version is the same that the fetched dna has
+      header = TypeSpecification.deserializeHeader(
+        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<64>,
+      ) as Header<T>
+      data = data.slice(HEADER_BYTE_LENGTH)
+      processedBytes += 32 // because the typeSepRef has been sliced additionally only
     }
 
     if (isHeaderType(header!, Type.array)) {
       const {
         typeSpecificationManager: typeSpecificationManager,
         typeSpecificationByteSize: typeSpecificationByteSize,
-      } = deserializeArray(data, header)
+      } = await deserializeArray(data, header, storageLoader)
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
-        processedBytes: processedBytes + typeSpecificationByteSize,
+        processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = deserializeObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = await deserializeObject(
+        data,
+        header,
+        storageLoader,
+      )
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
-        processedBytes: processedBytes + typeSpecificationByteSize,
+        processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableArray)) {
       const {
         typeSpecificationManager: typeSpecificationManager,
         typeSpecificationByteSize: typeSpecificationByteSize,
-      } = deserializeNullableArray(data, header)
+      } = await deserializeNullableArray(data, header, storageLoader)
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
-        processedBytes: processedBytes + typeSpecificationByteSize,
+        processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = deserializeNullableObject(data, header)
+      const { typeSpecificationManager, typeSpecificationByteSize } = await deserializeNullableObject(
+        data,
+        header,
+        storageLoader,
+      )
 
       return {
         typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
-        processedBytes: processedBytes + typeSpecificationByteSize,
+        processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     }
 
@@ -400,7 +463,7 @@ export class TypeSpecification<T extends Type> {
     if (!equalBytes(versionBytes, serializeVersion(Version.unpackedV0_1))) {
       throw new Error(`Not a valid BeeSon version hash`)
     }
-    // Type check
+
     assertBeeSonType(type)
 
     return {
