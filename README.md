@@ -43,7 +43,7 @@ The library defaults the JSON types to the followings:
 * `number` (when it does have decimal value): `float32`
 
 The `superBeeSon` type is a notation for a container type data implementation (e.g. array or object) where the type specification is referenced with a Swarm hash.
-This reserves only 3 segments before the data implementation so that the on-chain identification of the data-blob can be really cheap.
+This reserves only 2 segments before the data implementation so that the on-chain identification of the data-blob cannot be cheaper.
 
 The `swarmCac` and `swarmSoc` are misc types that are deserialized as regexed strings according to the rules of [Swarm CIDs](https://github.com/ethersphere/swarm-cid-js/). Additionally, the serialization can interpret the CID object used in `swarm-cid-js`.
 
@@ -84,7 +84,7 @@ Every BeeSon has to start with a serialised header that consists of
 
 All sections are padded to fit segments (32 bytes), where
 - Header is always present at BeeSon types
-- TypeScpecification is presented at _container types_ and _misc types_. In other cases, it is omitted.
+- TypeScpecification is presented at _container types_ and sometimes at _misc types_. In other cases, it is omitted.
 - Data implementation is the serialized data itself that only stores the value of the data described in the header (and in the TypeScpecification).
 
 The elements of the TypeScpecification (abiSegmentSize, typeDefinition array, etc.) are packed, but the whole TypeScpecification byte serialization is padded to a whole segment.
@@ -112,31 +112,38 @@ The TypeScpecification structure looks like the following (including with the da
 
 ```
 ┌────────────────────────────────┐┐
-│     abiSegmentSize <2 byte>    ││
+│       typeDefSize <2 byte>     ││ -> N
 ├────────────────────────────────┤│
-│   typeDefinitonsSize <2 byte>  ││
+│     superTypeRefSize <2 byte>  ││ -> M
 ├────────────────────────────────┤│
 │ ┌────────────────────────────┐ ││
-│ │      typeDefiniton 1       │ ││
+│ │         typeDef 1          │ ││
 │ ├────────────────────────────┤ ││
-│ │            ...             │ ││-> TypeSpecification
+│ │            ...             │ ││
 │ ├────────────────────────────┤ ││
-│ │      typeDefiniton N       │ ││
+│ │         typeDef N          │ ││
 │ └────────────────────────────┘ ││
 │ ┌────────────────────────────┐ ││
 │ │    (nullable bitVector)    │ ││
-│ └────────────────────────────┘ │┘ 
+│ └────────────────────────────┘ || -> segmentPadded here
+│ ┌────────────────────────────┐ ││
+│ │       superTypeRef 1       │ ││
+│ ├────────────────────────────┤ ││
+│ │            ...             │ ││
+│ ├────────────────────────────┤ ││
+│ │       superTypeRef M       │ ││
+│ └────────────────────────────┘ |┘
 │ ┌────────────────────────────┐ │┐
 │ │        dataSegment 1       │ ││
 │ ├────────────────────────────┤ ││
 │ │            ...             │ ││
 │ ├────────────────────────────┤ ││-> Data implementation 
-│ │        dataSegment M       │ ││
+│ │        dataSegment L       │ ││
 │ └────────────────────────────┘ ││
 └────────────────────────────────┘┘
 ```
-* **abiSegmentSize**: the byte size is `abiSegmentSize * 32` until the Data implementation
 * **typeDefintionsSize**: tells how many elements `typeDefiniton array` has (value * 6 bytes long)
+* **superTypeRefSize**: indicates the length of `superTypeRef array` as well as how many superBeeSon is defined in the `typeDefintion array`
 * **typeDefinition 1..N**: typeDefinition array consist of 6 bytes elements that represents
 ```
 ┌────────────────────────────────┐
@@ -145,8 +152,9 @@ The TypeScpecification structure looks like the following (including with the da
 │      segmentLength <4 byte>    │-> how many segments the data implementation reserves
 └────────────────────────────────┘
 ```
-* **nullable bitVector**: states which elements can be nulls _only in case of nullableArray container type_
-* **dataSegment 1..M**: data implementation part where every data element reserves one or more segments (32 bytes)
+* **nullable bitVector**: states which elements can be nulls _only in case of nullableObject container type_. it is padded to a whole segment so that segment fitting type specification elements can follow.
+* **superTypeRef M**: segment fitted elements that refer typeSpecifications for the described type of SuperBeeSon data.
+* **dataSegment 1..L**: data implementation part where every data element reserves one or more segments (32 bytes)
 
 ### Object
 
@@ -159,11 +167,9 @@ The TypeScpecification serialization looks really similar to the [array's TypeSc
 
 ```
 ┌────────────────────────────────┐┐
-│     abiSegmentSize <2 byte>    ││
-├────────────────────────────────┤│
 │       typeDefSize <2 byte>     ││ -> N
 ├────────────────────────────────┤│
-│     superTypeDefSize <2 byte>  ││ -> M
+│     superTypeRefSize <2 byte>  ││ -> M
 ├────────────────────────────────┤│
 │      markersLength <2 byte>    ││
 ├────────────────────────────────┤│
@@ -175,13 +181,6 @@ The TypeScpecification serialization looks really similar to the [array's TypeSc
 │ │         typeDef N          │ ││
 │ └────────────────────────────┘ ││
 │ ┌────────────────────────────┐ ││
-│ │       superTypeDef 1       │ ││
-│ ├────────────────────────────┤ ││ -> TypeScpecification
-│ │            ...             │ ││
-│ ├────────────────────────────┤ ││
-│ │       superTypeDef M       │ ││
-│ └────────────────────────────┘ ││
-│ ┌────────────────────────────┐ ││
 │ │          marker 1          │ ││
 │ ├────────────────────────────┤ ││
 │ │            ...             │ ││
@@ -190,7 +189,7 @@ The TypeScpecification serialization looks really similar to the [array's TypeSc
 │ └────────────────────────────┘ ││
 │ ┌────────────────────────────┐ ││
 │ │    (nullable bitVector)    │ ││
-│ └────────────────────────────┘ │| -> segmentPadded until here
+│ └────────────────────────────┘ │| -> segmentPadded here
 │ ┌────────────────────────────┐ ││
 │ │       superTypeRef 1       │ ││
 │ ├────────────────────────────┤ ││
@@ -209,7 +208,7 @@ The TypeScpecification serialization looks really similar to the [array's TypeSc
 ```
 and the differences are:
 * **markersLength**: states the markers byte length in the TypeScpecification _only in case of nullableObject container type_
-* **typeDefinition 1..N**: typeDefinition array consist of 8 bytes elements that represents
+* **typeDef 1..N**: typeDefinition array consist of 8 bytes elements that represents
 ```
 ┌────────────────────────────────┐
 │          type <2 byte>         │
@@ -219,8 +218,7 @@ and the differences are:
 │      markerIndex <2 byte>      │-> what is the byte index from which the corresponding marker (key) string starts in the markerArray
 └────────────────────────────────┘
 ```
-* **marker 1..N**: marker array where the object keys are concatenated in the order of the typeDefinitions
-* **nullable bitVector**: states which elements can be nulls _only in case of nullableObject container type_
+* **marker 1..N + M**: marker array where the object keys are concatenated in the order of the typeDefinitions
 
 # Installation
 
@@ -276,7 +274,7 @@ beeSon2.json = 789
 // serialize beeSon object
 beeSon2Bytes = beeSon2.serialize()
 // deserialize beeSon2 byte array
-beeSon2Again = BeeSon.deserialize(beeSon2Bytes)
+beeSon2Again = await BeeSon.deserialize(beeSon2Bytes)
 // check its value and type
 console.log(beeSon2Again.json) // 789
 console.log(beeSon2Again.typeSpecificationManager.type) // 29
