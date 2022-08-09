@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@ethersphere/swarm-cid": "^0.1.0",
+    "@fairdatasociety/bmt-js": "^2.0.1",
     "js-sha3": "^0.8.0"
   }
 }
