@@ -303,3 +303,18 @@ export function clearUndefinedObjValues(obj: Record<string | number | symbol, un
 export function segmentSize(bytesLength: number): number {
   return Math.ceil(bytesLength / SEGMENT_SIZE)
 }
+
+export function paddingToSegment(segmentCount: number, data: Uint8Array): Uint8Array {
+  const dataSegmentSize = segmentSize(data.length)
+  if (segmentCount < dataSegmentSize) {
+    throw new Error(`Data has more segments ${segmentCount} than its limit ${segmentCount}`)
+  }
+
+  if (segmentCount > dataSegmentSize) {
+    const paddingByteSize = (segmentCount - dataSegmentSize) * SEGMENT_SIZE
+
+    return new Uint8Array([...data, ...new Uint8Array(paddingByteSize)])
+  }
+
+  return data
+}
