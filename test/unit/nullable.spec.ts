@@ -11,7 +11,7 @@ interface TestDataMain extends TestBuddy {
 }
 
 describe('nullable operations on beeson', () => {
-  it('should create nullable containers from strict ones', () => {
+  it('should create nullable containers from strict ones', async () => {
     const json: TestDataMain = {
       name: 'john coke',
       age: 48,
@@ -22,7 +22,8 @@ describe('nullable operations on beeson', () => {
     expect(beeson.typeSpecificationManager.type).toBe(Type.object)
     const nullableBeeSon = beeson.getNullableContainer()
     expect(nullableBeeSon.typeSpecificationManager.type).toBe(Type.nullableObject)
-    const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
+    const nullableJsonBytes = nullableBeeSon.serialize()
+    const nullableBeeSonAgain = await BeeSon.deserialize(nullableJsonBytes)
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const json2 = nullableBeeSon.json
     json2.age = null
@@ -42,7 +43,7 @@ describe('nullable operations on beeson', () => {
     nullableBeeSon.setIndexNullable('age', false)
   })
 
-  it('should get Abi object and init AbiManager', () => {
+  it('should get Abi object and init AbiManager', async () => {
     const json: TestDataMain = {
       name: 'john coke',
       age: 48,
@@ -53,7 +54,7 @@ describe('nullable operations on beeson', () => {
     const beeson = new BeeSon<TestDataMain>({ json })
     const nullableBeeSon = beeson.getNullableContainer()
     nullableBeeSon.setIndexNullable('name', false)
-    const nullableBeeSonAgain = BeeSon.deserialize(nullableBeeSon.serialize())
+    const nullableBeeSonAgain = await BeeSon.deserialize(nullableBeeSon.serialize())
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const abiObject = nullableBeeSon.typeSpecificationManager.getTypeSpecificationObject()
     const typeSpecificationManager = DnaManager.loadDnaObject(abiObject, new Bytes(32))
@@ -61,7 +62,7 @@ describe('nullable operations on beeson', () => {
     beesonAgain.json = json
     beesonAgain.json = json2
     expect(beesonAgain.json).toStrictEqual(json2)
-    const nullableBeeSonAgain2 = BeeSon.deserialize(beesonAgain.serialize())
+    const nullableBeeSonAgain2 = await BeeSon.deserialize(beesonAgain.serialize())
     expect(nullableBeeSonAgain2.json).toStrictEqual(beesonAgain.json)
     expect(() => (beesonAgain.json = { name: 'nvm' })).toThrowError(
       /^Given JSON object has 1 key length, when the typeSpecification defines 4 length./,
