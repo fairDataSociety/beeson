@@ -6,6 +6,8 @@ export type JsonMap<T> = {
   [K in keyof T]: JsonValue
 }
 
+export type Reference = Bytes<32 | 64>
+
 /** string types, numeric types, misc types, container types */
 export enum Type {
   null = 1,
@@ -108,7 +110,7 @@ export class NotSupportedTypeError extends Error {
 }
 
 export function isBeeSonType(value: unknown): value is Type {
-  return Object.values(Type).includes(value as Type)
+  return value === SUPER_BEESON_TYPE || Object.values(Type).includes(value as Type)
 }
 
 export function assertBeeSonType(value: unknown): asserts value is Type {
@@ -119,4 +121,10 @@ export function assertBeeSonType(value: unknown): asserts value is Type {
 
 export function isContainerType(value: unknown): value is Type.array | Type.object {
   return value === Type.array || value === Type.object
+}
+
+export type StorageLoader = (reference: Reference) => Promise<Uint8Array>
+
+export function isReference(value: unknown): value is Reference {
+  return value instanceof Uint8Array && (value.length === 32 || value.length === 64)
 }
