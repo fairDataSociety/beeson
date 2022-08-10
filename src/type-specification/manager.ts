@@ -88,9 +88,12 @@ type DnaChildren<T extends Type> = T extends Type.array
   ? ChildONullable[]
   : undefined
 
+type DnaSuperBeeSon<T extends Type> = T extends ContainerTypes ? boolean : false | undefined
+
 interface DnaObject<T extends Type> {
   type: T
   children: DnaChildren<T>
+  superBeeSon: DnaSuperBeeSon<T>
 }
 
 interface DnaRootObject<T extends Type> extends DnaObject<T> {
@@ -104,17 +107,6 @@ function isDnaObjectType<T extends Type>(
   return typeSpecificationObject.type === type
 }
 
-// export interface Dna<T extends Type = Type> {
-//   version: Version
-//   type: T
-//   /** at container types */
-//   typeDefinitions: T extends Type.array
-//     ? TypeDefinitionA[]
-//     : T extends Type.object
-//     ? TypeDefinitionO[]
-//     : unknown
-// }
-
 export interface Header<T extends Type> {
   version: Version
   type: T
@@ -126,24 +118,24 @@ type TypeDefinitions<T extends Type> = T extends Type.array | Type.nullableArray
   ? TypeDefinitionO[]
   : null
 
-type NullableContainerDnaManager<T extends Type> = T extends Type.array
+type NullableContainerTypeSpecification<T extends Type> = T extends Type.array
   ? TypeSpecification<Type.nullableArray>
   : T extends Type.object
   ? TypeSpecification<Type.nullableObject>
   : never
 
 export class TypeSpecification<T extends Type> {
-  /**
-   * The serialisation will happen with the DNA referenced short version instead of serializing the typeSpecificaiton
-   * OR the deserialization happened from DNA implementation
-   */
-  public superBeeSon = false
   constructor(
     private _version: Version,
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
     /** if the JSONValue is nullable according to its parent container's field defintion */
     public nullable = false,
+    /**
+     * The serialisation will happen with the DNA referenced short version instead of serializing the typeSpecificaiton
+     * OR the deserialization happened from DNA implementation
+     */
+    public superBeeSon = false,
   ) {}
 
   public get version(): Version {
@@ -240,16 +232,17 @@ export class TypeSpecification<T extends Type> {
     )
   }
 
-  public getTypeSpecificationObject(): DnaObject<T> {
+  public getDnaObject(): DnaObject<T> {
     if (isTypeSpecificaitonManagerType(this, Type.array)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
           }
         }) as DnaChildren<T>,
+        superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
     } else if (isTypeSpecificaitonManagerType(this, Type.nullableArray)) {
       return {
@@ -257,10 +250,11 @@ export class TypeSpecification<T extends Type> {
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
             nullable: typeDef.beeSon.typeSpecificationManager.nullable,
           }
         }) as DnaChildren<T>,
+        superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
     } else if (isTypeSpecificaitonManagerType(this, Type.nullableObject)) {
       return {
@@ -268,11 +262,12 @@ export class TypeSpecification<T extends Type> {
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
             nullable: typeDef.beeSon.typeSpecificationManager.nullable,
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
+        superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
     } else if (isTypeSpecificaitonManagerType(this, Type.object)) {
       return {
@@ -280,16 +275,18 @@ export class TypeSpecification<T extends Type> {
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getTypeSpecificationObject(),
+            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
+        superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
     }
 
     return {
       type: this._type,
       children: undefined as DnaChildren<T>,
+      superBeeSon: undefined as DnaSuperBeeSon<T>,
     }
   }
 
@@ -483,7 +480,13 @@ export class TypeSpecification<T extends Type> {
         }
       })
 
-      return new TypeSpecification(version, Type.array, typeDefinitions, nullable) as TypeSpecification<T>
+      return new TypeSpecification(
+        version,
+        Type.array,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
       const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
         return {
@@ -503,6 +506,7 @@ export class TypeSpecification<T extends Type> {
         Type.nullableArray,
         typeDefinitions,
         nullable,
+        typeSpecification.superBeeSon,
       ) as TypeSpecification<T>
     } else if (isDnaObjectType(typeSpecification, Type.object)) {
       const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
@@ -518,7 +522,13 @@ export class TypeSpecification<T extends Type> {
         }
       })
 
-      return new TypeSpecification(version, Type.object, typeDefinitions, nullable) as TypeSpecification<T>
+      return new TypeSpecification(
+        version,
+        Type.object,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
       const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
@@ -539,10 +549,17 @@ export class TypeSpecification<T extends Type> {
         Type.nullableObject,
         typeDefinitions,
         nullable,
+        typeSpecification.superBeeSon,
       ) as TypeSpecification<T>
     }
 
-    return new TypeSpecification(version, typeSpecification.type, null as TypeDefinitions<T>, nullable)
+    return new TypeSpecification(
+      version,
+      typeSpecification.type,
+      null as TypeDefinitions<T>,
+      nullable,
+      typeSpecification.superBeeSon,
+    )
   }
 
   // mutate methods
@@ -580,7 +597,7 @@ export class TypeSpecification<T extends Type> {
     this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
   }
 
-  public getNullableContainerDnaManager(): NullableContainerDnaManager<T> {
+  public getNullableTypeSpecification(): NullableContainerTypeSpecification<T> {
     if (isTypeSpecificaitonManagerType(this, Type.array)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
@@ -604,7 +621,7 @@ export class TypeSpecification<T extends Type> {
         this.version,
         Type.nullableArray,
         typeDefinitions,
-      ) as NullableContainerDnaManager<T>
+      ) as NullableContainerTypeSpecification<T>
     }
     if (isTypeSpecificaitonManagerType(this, Type.object)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
@@ -629,7 +646,7 @@ export class TypeSpecification<T extends Type> {
         this.version,
         Type.nullableObject,
         typeDefinitions,
-      ) as NullableContainerDnaManager<T>
+      ) as NullableContainerTypeSpecification<T>
     }
 
     throw new Error(`This TypeSpecification does not represent a nullable container value`)

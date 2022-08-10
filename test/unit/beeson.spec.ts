@@ -1,4 +1,4 @@
-import { DnaManager, BeeSon, Type } from '../../src'
+import { TypeSpecification, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/marshalling/address-serializer'
 
@@ -118,7 +118,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await DnaManager.deserialize(bytes)).typeSpecificationManager
+    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -146,7 +146,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await DnaManager.deserialize(bytes)).typeSpecificationManager
+    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -174,7 +174,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await DnaManager.deserialize(bytes)).typeSpecificationManager
+    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -204,7 +204,7 @@ describe('beeson', () => {
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
     const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await DnaManager.deserialize(bytes)).typeSpecificationManager
+    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)

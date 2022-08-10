@@ -526,7 +526,7 @@ export class BeeSon<T extends JsonValue> {
   }
 
   public getNullableContainer(): NullableContainerBeeSon<T> {
-    const typeSpecificationManager = this._typeSpecification.getNullableContainerDnaManager()
+    const typeSpecificationManager = this._typeSpecification.getNullableTypeSpecification()
     const newBeeSon = new BeeSon({ typeSpecificationManager })
     newBeeSon.json = this.json
 
