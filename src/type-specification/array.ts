@@ -93,12 +93,7 @@ export async function deserializeArray(
       // not superBeeSon
       assertBeeSonType(type)
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(
-        header.obfuscationKey,
-        header.version,
-        type,
-        null,
-      )
+      const typeSpecificationManager = new TypeSpecification(header.version, type, null)
       typeDefinitions.push({
         segmentLength,
         beeSon: new BeeSon({ typeSpecificationManager }),
@@ -116,12 +111,7 @@ export async function deserializeArray(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(
-      header.obfuscationKey,
-      header.version,
-      Type.array,
-      typeDefinitions,
-    ),
+    typeSpecificationManager: new TypeSpecification(header.version, Type.array, typeDefinitions),
     typeSpecificationByteSize,
   }
 }
@@ -210,13 +200,7 @@ export async function deserializeNullableArray(
       assertBeeSonType(type)
 
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(
-        header.obfuscationKey,
-        header.version,
-        type,
-        null,
-        nullable,
-      )
+      const typeSpecificationManager = new TypeSpecification(header.version, type, null, nullable)
       typeDefinitions.push({
         segmentLength,
         beeSon: new BeeSon({ typeSpecificationManager }),
@@ -234,12 +218,7 @@ export async function deserializeNullableArray(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(
-      header.obfuscationKey,
-      header.version,
-      Type.nullableArray,
-      typeDefinitions,
-    ),
+    typeSpecificationManager: new TypeSpecification(header.version, Type.nullableArray, typeDefinitions),
     typeSpecificationByteSize,
   }
 }

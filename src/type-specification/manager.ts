@@ -22,7 +22,6 @@ import {
   assertObject,
   assertString,
   Bytes,
-  encryptDecrypt,
   equalBytes,
   isNull,
   isNumber,
@@ -45,7 +44,7 @@ import {
 } from './object'
 import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 
-export const HEADER_BYTE_LENGTH = 64
+export const HEADER_BYTE_LENGTH = 32
 const BEESON_HEADER_ID = 1
 
 export enum Version {
@@ -95,7 +94,6 @@ interface DnaObject<T extends Type> {
 }
 
 interface DnaRootObject<T extends Type> extends DnaObject<T> {
-  obfuscationKey: Bytes<32>
   version: Version
 }
 
@@ -106,20 +104,18 @@ function isDnaObjectType<T extends Type>(
   return typeSpecificationObject.type === type
 }
 
-export interface Dna<T extends Type = Type> {
-  obfuscationKey: Bytes<32>
-  version: Version
-  type: T
-  /** at container types */
-  typeDefinitions: T extends Type.array
-    ? TypeDefinitionA[]
-    : T extends Type.object
-    ? TypeDefinitionO[]
-    : unknown
-}
+// export interface Dna<T extends Type = Type> {
+//   version: Version
+//   type: T
+//   /** at container types */
+//   typeDefinitions: T extends Type.array
+//     ? TypeDefinitionA[]
+//     : T extends Type.object
+//     ? TypeDefinitionO[]
+//     : unknown
+// }
 
 export interface Header<T extends Type> {
-  obfuscationKey: Bytes<32>
   version: Version
   type: T
 }
@@ -143,7 +139,6 @@ export class TypeSpecification<T extends Type> {
    */
   public superBeeSon = false
   constructor(
-    public obfuscationKey: Bytes<32>,
     private _version: Version,
     private _type: T,
     private _typeDefinitions: TypeDefinitions<T>,
@@ -322,7 +317,6 @@ export class TypeSpecification<T extends Type> {
       return header // no padding required
     }
     typeSpecification = segmentPaddingFromRight(typeSpecification)
-    encryptDecrypt(this.obfuscationKey, typeSpecification)
 
     // in case of SuperBeeSon only the typespecification's BMT address will be returned.
     if (!withoutBlobHeader && this.superBeeSon) {
@@ -339,15 +333,12 @@ export class TypeSpecification<T extends Type> {
     return new Uint8Array([...header, ...typeSpecification])
   }
 
-  public typeSpecificationHeader(): Bytes<64> {
-    const data = new Uint8Array([
+  public typeSpecificationHeader(): Bytes<32> {
+    return new Uint8Array([
       ...serializeVersion(this._version),
       ...new Uint8Array(26),
       ...serializeType(this.superBeeSon ? SUPER_BEESON_TYPE : this._type),
-    ]) // should be 32 bytes
-    encryptDecrypt(this.obfuscationKey, data)
-
-    return new Bytes([...this.obfuscationKey, ...data])
+    ]) as Bytes<32> // should be 32 bytes
   }
 
   /**
@@ -367,7 +358,7 @@ export class TypeSpecification<T extends Type> {
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
       header = TypeSpecification.deserializeHeader(
-        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<64>,
+        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>,
       ) as Header<T>
       data = data.slice(HEADER_BYTE_LENGTH)
       processedBytes = HEADER_BYTE_LENGTH
@@ -390,7 +381,7 @@ export class TypeSpecification<T extends Type> {
       data = await storageLoader(typeSepRef)
       //TODO check whether the version is the same that the fetched dna has
       header = TypeSpecification.deserializeHeader(
-        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<64>,
+        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>,
       ) as Header<T>
       data = data.slice(HEADER_BYTE_LENGTH)
       processedBytes += 32 // because the typeSepRef has been sliced additionally only
@@ -442,7 +433,6 @@ export class TypeSpecification<T extends Type> {
 
     return {
       typeSpecificationManager: new TypeSpecification(
-        header.obfuscationKey,
         header.version,
         header.type,
         null as TypeDefinitions<T>,
@@ -451,13 +441,10 @@ export class TypeSpecification<T extends Type> {
     }
   }
 
-  private static deserializeHeader(bytes: Bytes<64>): Header<Type> {
-    const obfuscationKey = bytes.slice(0, 32) as Bytes<32>
-    const decryptedBytes = new Uint8Array(bytes.slice(32))
-    encryptDecrypt(obfuscationKey, decryptedBytes)
-    const versionBytes = decryptedBytes.slice(0, 4) as Bytes<4>
+  private static deserializeHeader(bytes: Bytes<32>): Header<Type> {
+    const versionBytes = bytes.slice(0, 4) as Bytes<4>
     const version = deserializeVersion(versionBytes)
-    const type = deserializeType(decryptedBytes.slice(30) as Bytes<2>)
+    const type = deserializeType(bytes.slice(30) as Bytes<2>)
 
     // version check
     if (!equalBytes(versionBytes, serializeVersion(Version.unpackedV0_1))) {
@@ -469,25 +456,18 @@ export class TypeSpecification<T extends Type> {
     return {
       type,
       version,
-      obfuscationKey,
     }
   }
 
   public static loadDnaRootObject<T extends Type>(typeSpecification: DnaRootObject<T>): TypeSpecification<T> {
-    return TypeSpecification.loadDnaObject(
-      typeSpecification,
-      typeSpecification.obfuscationKey,
-      typeSpecification.version,
-    )
+    return TypeSpecification.loadDnaObject(typeSpecification, typeSpecification.version)
   }
 
   public static loadDnaObject<T extends Type>(
     typeSpecification: DnaObject<T>,
-    obfuscationKey: Bytes<32> = new Bytes(32),
     version = Version.unpackedV0_1,
     nullable = false,
   ): TypeSpecification<T> {
-    assertObfuscationKey(obfuscationKey)
     assertVersion(version)
 
     if (isDnaObjectType(typeSpecification, Type.array)) {
@@ -497,21 +477,13 @@ export class TypeSpecification<T extends Type> {
           beeSon: new BeeSon({
             typeSpecificationManager: TypeSpecification.loadDnaObject(
               child.typeSpecification,
-              obfuscationKey,
               version,
             ) as TypeSpecification<any>,
-            obfuscationKey,
           }),
         }
       })
 
-      return new TypeSpecification(
-        obfuscationKey,
-        version,
-        Type.array,
-        typeDefinitions,
-        nullable,
-      ) as TypeSpecification<T>
+      return new TypeSpecification(version, Type.array, typeDefinitions, nullable) as TypeSpecification<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
       const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
         return {
@@ -519,17 +491,14 @@ export class TypeSpecification<T extends Type> {
           beeSon: new BeeSon({
             typeSpecificationManager: TypeSpecification.loadDnaObject(
               child.typeSpecification,
-              obfuscationKey,
               version,
               child.nullable,
             ) as TypeSpecification<any>,
-            obfuscationKey,
           }),
         }
       })
 
       return new TypeSpecification(
-        obfuscationKey,
         version,
         Type.nullableArray,
         typeDefinitions,
@@ -542,22 +511,14 @@ export class TypeSpecification<T extends Type> {
           beeSon: new BeeSon({
             typeSpecificationManager: TypeSpecification.loadDnaObject(
               child.typeSpecification,
-              obfuscationKey,
               version,
             ) as TypeSpecification<any>,
-            obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
-      return new TypeSpecification(
-        obfuscationKey,
-        version,
-        Type.object,
-        typeDefinitions,
-        nullable,
-      ) as TypeSpecification<T>
+      return new TypeSpecification(version, Type.object, typeDefinitions, nullable) as TypeSpecification<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
       const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
@@ -565,18 +526,15 @@ export class TypeSpecification<T extends Type> {
           beeSon: new BeeSon({
             typeSpecificationManager: TypeSpecification.loadDnaObject(
               child.typeSpecification,
-              obfuscationKey,
               version,
               child.nullable,
             ) as TypeSpecification<any>,
-            obfuscationKey,
           }),
           marker: child.marker,
         }
       })
 
       return new TypeSpecification(
-        obfuscationKey,
         version,
         Type.nullableObject,
         typeDefinitions,
@@ -584,13 +542,7 @@ export class TypeSpecification<T extends Type> {
       ) as TypeSpecification<T>
     }
 
-    return new TypeSpecification(
-      obfuscationKey,
-      version,
-      typeSpecification.type,
-      null as TypeDefinitions<T>,
-      nullable,
-    )
+    return new TypeSpecification(version, typeSpecification.type, null as TypeDefinitions<T>, nullable)
   }
 
   // mutate methods
@@ -617,7 +569,6 @@ export class TypeSpecification<T extends Type> {
       ? [...oldDnaManager.typeDefinitions]
       : oldDnaManager.typeDefinitions
     const newDnaManager = new TypeSpecification(
-      oldDnaManager.obfuscationKey,
       oldDnaManager.version,
       oldDnaManager.type,
       oldTypeDefs,
@@ -635,7 +586,6 @@ export class TypeSpecification<T extends Type> {
         const oldBeeSon = oldTypeDef.beeSon
         const oldDnaManager = oldBeeSon.typeSpecificationManager
         const newDnaManager = new TypeSpecification(
-          oldDnaManager.obfuscationKey,
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
@@ -651,7 +601,6 @@ export class TypeSpecification<T extends Type> {
       })
 
       return new TypeSpecification(
-        this.obfuscationKey,
         this.version,
         Type.nullableArray,
         typeDefinitions,
@@ -662,7 +611,6 @@ export class TypeSpecification<T extends Type> {
         const oldBeeSon = oldTypeDef.beeSon
         const oldDnaManager = oldBeeSon.typeSpecificationManager
         const newDnaManager = new TypeSpecification(
-          oldDnaManager.obfuscationKey,
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
@@ -678,7 +626,6 @@ export class TypeSpecification<T extends Type> {
       })
 
       return new TypeSpecification(
-        this.obfuscationKey,
         this.version,
         Type.nullableObject,
         typeDefinitions,
@@ -689,13 +636,9 @@ export class TypeSpecification<T extends Type> {
   }
 }
 
-export function generateDna<T extends JsonValue>(
-  json: T,
-  obfuscationKey?: Bytes<32>,
-): TypeSpecification<ValueType<T>> {
+export function generateDna<T extends JsonValue>(json: T): TypeSpecification<ValueType<T>> {
   const type = identifyType(json)
   const version = Version.unpackedV0_1
-  obfuscationKey = obfuscationKey || new Bytes(32)
 
   if (type === Type.array) {
     const jsonArray = json as Array<unknown>
@@ -708,12 +651,7 @@ export function generateDna<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength })
     }
 
-    return new TypeSpecification(
-      obfuscationKey,
-      version,
-      type,
-      typeDefinitions as TypeDefinitions<ValueType<T>>,
-    )
+    return new TypeSpecification(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   } else if (type === Type.object) {
     const jsonObject = json as Record<string, unknown>
     const markerArray: string[] = Object.keys(jsonObject).sort()
@@ -727,15 +665,10 @@ export function generateDna<T extends JsonValue>(
       typeDefinitions.push({ beeSon, segmentLength, marker })
     }
 
-    return new TypeSpecification(
-      obfuscationKey,
-      version,
-      type,
-      typeDefinitions as TypeDefinitions<ValueType<T>>,
-    )
+    return new TypeSpecification(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   }
 
-  return new TypeSpecification(obfuscationKey, version, type, null as TypeDefinitions<ValueType<T>>)
+  return new TypeSpecification(version, type, null as TypeDefinitions<ValueType<T>>)
 }
 
 export function isTypeSpecificaitonManagerType<T extends Type>(
@@ -829,14 +762,6 @@ function deserializeVersionSemver(bytes: Bytes<3>): Version {
   }
 
   return strings.join('.') as Version
-}
-
-function isObfuscationKey(value: unknown): value is Bytes<32> {
-  return value instanceof Uint8Array && value.length === 32
-}
-
-function assertObfuscationKey(value: unknown): asserts value is Bytes<32> {
-  if (!isObfuscationKey(value)) throw new Error(`Not valid obfuscation key: ${value}`)
 }
 
 function isVersion(value: unknown): value is Version {

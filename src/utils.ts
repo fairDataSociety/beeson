@@ -135,26 +135,6 @@ export function segmentPaddingFromRight(bytes: Uint8Array) {
   return bytes
 }
 
-/**
- * runs a XOR operation on data, encrypting it if it
- * hasn't already been, and decrypting it if it has, using the key provided.
- */
-export function encryptDecrypt(key: Bytes<32>, data: Uint8Array, startIndex = 0, endIndex?: number): void {
-  if (equalBytes(key, new Uint8Array(32))) return
-
-  endIndex ||= data.length
-
-  for (let i = startIndex; i < endIndex; i += key.length) {
-    const maxChunkIndex = i + key.length
-    const encryptionChunkEndIndex = maxChunkIndex <= data.length ? maxChunkIndex : data.length
-    const encryptionChunk = data.slice(i, encryptionChunkEndIndex)
-    for (let j = 0; j < encryptionChunk.length; j++) {
-      encryptionChunk[j] = Number(encryptionChunk[j]) ^ Number(key[j % key.length])
-    }
-    data.set(encryptionChunk, i)
-  }
-}
-
 export function stringToBytes(value: string): Uint8Array {
   return new TextEncoder().encode(value)
 }

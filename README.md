@@ -59,14 +59,11 @@ The type serialization is 2 bytes, but it is extensible until 28 bytes.
 Every BeeSon has to start with a serialised header that consists of
 ```
 ┌────────────────────────────────┐
-│    obfuscationKey <32 byte>    │
-├────────────────────────────────┤
 │      versionBytes <4 byte>     │
 ├────────────────────────────────┤
 │      blobFlags <28 byte>       │
 └────────────────────────────────┘
 ```
-- `obfuscationKey`: random key for encrypted data with which the library will XOR the following data 
 - `versionBytes`: the first byte is the data-structure type, for BeeSon this is `1` and the last 3 bytes represent the [semVer](https://semver.org/)
 - `blobFlags`: in BeeSon, its last 2 bytes are equal to the [Type](#Type) (similarly as in `typeDefinition`)
 
@@ -74,7 +71,7 @@ Every BeeSon has to start with a serialised header that consists of
 
 ```
 ┌────────────────────────────────┐
-│         Header <64 byte>       │
+│         Header <32 byte>       │
 ├────────────────────────────────┤
 │       (TypeScpecification)     │
 ├────────────────────────────────┤

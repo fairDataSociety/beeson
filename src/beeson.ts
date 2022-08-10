@@ -37,7 +37,6 @@ import {
 } from './types'
 import {
   Bytes,
-  encryptDecrypt,
   flattenBytesArray,
   isNull,
   paddingToSegment,
@@ -53,7 +52,6 @@ function isBeeSonType<T extends Type>(beeSon: unknown, type: T): beeSon is BeeSo
 
 interface JsonParams<T extends JsonValue> {
   json: T
-  obfuscationKey?: Bytes<32>
 }
 
 interface DnaParams<T extends JsonValue = JsonValue> {
@@ -164,10 +162,7 @@ export class BeeSon<T extends JsonValue> {
   public serialize(options?: { withoutBlobHeader?: boolean }): Uint8Array {
     const withoutBlobHeader = options?.withoutBlobHeader || false
     const dna = this.serializeDna(withoutBlobHeader)
-
     const dataImplementation = this.serializeData()
-    // if blob header has to present then it has to obfuscate the data implementation
-    // if (!withoutBlobHeader) encryptDecrypt(this._typeSpecification.obfuscationKey, dataImplementation)
 
     return new Uint8Array([...dna, ...dataImplementation])
   }
@@ -178,7 +173,6 @@ export class BeeSon<T extends JsonValue> {
     header?: Header<Type>,
     storageLoader?: StorageLoader,
   ): Promise<BeeSon<JsonValue>> {
-    const definedHeader = Boolean(header)
     const { typeSpecificationManager, processedBytes } = await TypeSpecification.deserialize(
       data,
       header,
@@ -186,8 +180,6 @@ export class BeeSon<T extends JsonValue> {
     )
     const beeSon = new BeeSon({ typeSpecificationManager })
     const dataImplementation = data.slice(processedBytes)
-    // if header object is not passed, then the data implementation has to be encrypted.
-    if (!definedHeader) encryptDecrypt(typeSpecificationManager.obfuscationKey, dataImplementation)
     await beeSon.deserializeData(dataImplementation)
 
     try {
@@ -429,8 +421,6 @@ export class BeeSon<T extends JsonValue> {
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
       if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          // typeSpecificationManager type/obfuscationkey and else are set already on typeSpecification's deserialisation
-          obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })
@@ -464,8 +454,6 @@ export class BeeSon<T extends JsonValue> {
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
       if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          // typeSpecificationManager type/obfuscationkey and else are set already on typeSpecification's deserialisation
-          obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })
@@ -499,7 +487,6 @@ export class BeeSon<T extends JsonValue> {
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
       if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })
@@ -525,7 +512,6 @@ export class BeeSon<T extends JsonValue> {
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
       if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          obfuscationKey: typeDef.beeSon.typeSpecificationManager.obfuscationKey,
           type: typeDef.beeSon.typeSpecificationManager.type,
           version: typeDef.beeSon.typeSpecificationManager.version,
         })

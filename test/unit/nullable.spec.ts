@@ -1,5 +1,4 @@
 import { DnaManager, BeeSon, Type } from '../../src'
-import { Bytes } from '../../src/utils'
 
 interface TestBuddy {
   name: string
@@ -57,7 +56,7 @@ describe('nullable operations on beeson', () => {
     const nullableBeeSonAgain = await BeeSon.deserialize(nullableBeeSon.serialize())
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
     const abiObject = nullableBeeSon.typeSpecificationManager.getTypeSpecificationObject()
-    const typeSpecificationManager = DnaManager.loadDnaObject(abiObject, new Bytes(32))
+    const typeSpecificationManager = DnaManager.loadDnaObject(abiObject)
     const beesonAgain = new BeeSon({ typeSpecificationManager })
     beesonAgain.json = json
     beesonAgain.json = json2
