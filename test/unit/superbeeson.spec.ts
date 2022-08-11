@@ -1,6 +1,6 @@
 import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 import { BeeSon, Type } from '../../src'
-import { HEADER_BYTE_LENGTH } from '../../src/type-specification'
+import { HEADER_BYTE_LENGTH, TypeSpecification } from '../../src/type-specification'
 import { Reference } from '../../src/types'
 import { SEGMENT_SIZE } from '../../src/utils'
 export { Reference } from '../../src/types'
@@ -83,7 +83,14 @@ describe('superbeeson', () => {
     beeson.superBeeSon = true
     const beesonBytes = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(beesonBytes, undefined, storage.storageLoader)
+    expect(beeson.superBeeSon).toBe(beesonAgain.superBeeSon)
     expect(beesonAgain.json).toStrictEqual(beeson.json)
+    // not with dnaObject
+    const dnaObject = beesonAgain.typeSpecificationManager.getDnaObject()
+    const beeSonAgain2 = new BeeSon({ typeSpecificationManager: TypeSpecification.loadDnaObject(dnaObject) })
+    beeSonAgain2.json = json
+    const beesonBytesAgain = beeSonAgain2.serialize()
+    expect(beesonBytesAgain).toStrictEqual(beesonBytes)
   })
 
   it('should serialize/deserialize superbeeson attribute', async () => {

@@ -384,6 +384,25 @@ export class TypeSpecification<T extends Type> {
       processedBytes += 32 // because the typeSepRef has been sliced additionally only
     }
 
+    const deserialization = await this._deserialize(
+      data,
+      header,
+      processedBytes,
+      isRootSuperBeeSon,
+      storageLoader,
+    )
+    if (isRootSuperBeeSon) deserialization.typeSpecificationManager.superBeeSon = true
+
+    return deserialization
+  }
+
+  private static async _deserialize<T extends Type>(
+    data: Uint8Array,
+    header: Header<T>,
+    processedBytes: number,
+    isRootSuperBeeSon: boolean,
+    storageLoader?: StorageLoader,
+  ): Promise<{ typeSpecificationManager: TypeSpecification<T>; processedBytes: number }> {
     if (isHeaderType(header!, Type.array)) {
       const {
         typeSpecificationManager: typeSpecificationManager,
