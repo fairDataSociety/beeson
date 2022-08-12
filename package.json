@@ -7,7 +7,10 @@
     "test": "jest --verbose --selectProjects=node:unit node:unit --config=jest.config.ts",
     "test:unit": "jest --verbose --selectProjects=node:unit node:unit --config=jest.config.ts",
     "compile": "webpack --progress --env target=node",
-    "compile:types": "tsc --emitDeclarationOnly --declaration --skipLibCheck"
+    "compile:types": "tsc --emitDeclarationOnly --declaration --skipLibCheck",
+    "lint": "eslint --fix \"src/**/*.ts\" && prettier --write \"src/**/*.ts\"",
+    "lint:check": "eslint \"src/**/*.ts\" && prettier --check \"src/**/*.ts\"",
+    "check:types": "tsc --project tsconfig.json --skipLibCheck"
   },
   "repository": {
     "type": "git",
