@@ -246,7 +246,8 @@ You can import the followings directly from `@fairdatasociety/beeson`:
 * Type                  # enum for [types](#Types) used in BeeSon
 * BeeSon                # BeeSon class that you can initialize with either JSON object or TypeSpecification
 * TypeSpecification     # TypeSpecification class that defines JSON object structures/types and its TypeScpecification
-* Utils                 # Utility functions such as `createStorage` that can be used for SuperBeeSon handling
+* Utils                 # Utility functions
+    * `createStorage`   # that can be used for SuperBeeSon handling at storing and loading TypeManager.
 
 Work with non-container types:
 ```js

@@ -96,10 +96,6 @@ interface DnaObject<T extends Type> {
   superBeeSon: DnaSuperBeeSon<T>
 }
 
-interface DnaRootObject<T extends Type> extends DnaObject<T> {
-  version: Version
-}
-
 function isDnaObjectType<T extends Type>(
   typeSpecificationObject: DnaObject<Type>,
   type: T,
