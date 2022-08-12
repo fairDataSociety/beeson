@@ -305,3 +305,43 @@ nullableTypeManager = beeSon1.typeManager.getNullableTypeManager()
 beeSon2 = new BeeSon({ typeManager: nullableTypeManager })
 beeSon2.json = json // does not throw error
 ```
+
+With container types, it is possible to reference type specifications of values.
+The type specification references are 32 bytes of Swarm hashes (BMT Root with span).
+Thereby, every container type structure can be expressed with 32 bytes of header, 32 bytes of type specification reference and its data implementation.
+
+This is a very powerful feature of the BeeSon (that is why it is called SuperBeeSon).
+It is not only great for compressing but also the BMT inclusion proof of the used BeeSon datastructure cannot be cheaper.
+
+Because the references have to be resolved, the deserialization is `async` but with preloading the used type specifications it could work in a sync way. Nevertheless, favoring of simplicity of the initial preload, the `deserialize` function awaits an async `storageLoader` function to resolve the typeSpecifications of SuperBeeSon elements.
+
+This example shows how to handle a root object in a SuperBeeSon way based on the previous example,
+but every _container type_ can be SuperBeeSon so that many distinct type definitions can be referenced in one BeeSon object.
+
+```js
+{ BeeSon, Utils } = require('./dist/index.js')
+
+json = {
+    name: 'john coke',
+    age: 48,
+    id: 'ID2',
+    buddies: [{ name: 'jesus', age: 33, id: 'ID1' }],
+}
+// initialize BeeSon object
+beeSon1 = new BeeSon({ json })
+// serializing BeeSon as object
+objectBytes = beeSon1.serialize()
+// change it to SuperBeeSon
+beeSon1.superBeeSon = true
+superBeeSonBytes = beeSon1.serialize()
+// comparing the byte length of the two
+console.log('objectBytesLength', objectBytes.length, 'superBeeSonBytesLength', superBeeSonBytes.length)
+// in order to resolve type specification reference
+// we need to save and load the typeSpecification bytes of the superBeeSon container element
+// to handle this, it is possible to use `createStorage` method of Utils
+{ swarmAddress, bytes } = beeSon1.typeManager.superBeeSonAttributes()
+storage = Utils.createStorage()
+storage.storageSaverSync(swarmAddress, bytes)
+beeSon2 = await BeeSon.deserialize(superBeeSonBytes, false, storage.storageLoader)
+//beeSon2 equals to beeSon1
+```
