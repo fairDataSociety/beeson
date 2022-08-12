@@ -233,8 +233,8 @@ function serializeTypeDefinitions(typeDefinitions: TypeDefinitionA[]): RSerializ
       )
       // calculate typeSpecification's reference (Swarm hash)
       const manager = typeDefinition.beeSon.typeManager
-      const typeSpecRef = manager.swarmAddress()
-      superTypeRefArray.push(typeSpecRef)
+      const { swarmAddress } = manager.superBeeSonAttributes()
+      superTypeRefArray.push(swarmAddress)
     } else {
       typeDefArray.push(
         new Bytes([
