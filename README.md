@@ -1,6 +1,6 @@
 # BeeSon
 
-BeeSon is a JSON compatible serialization format which allows to its elements be verified cheaply on-chain.
+BeeSon is a JSON compatible serialization format which allows its elements to be verified cheaply on-chain.
 
 > blockchain-verifiable, extensible encapsulation for schema-based object notation in Swarm
 
@@ -249,9 +249,14 @@ You can import the followings directly from `@fairdatasociety/beeson`:
 * Utils                 # Utility functions
     * `createStorage`   # that can be used for SuperBeeSon handling at storing and loading TypeManager.
 
+
+## Examples
+
 Work with non-container types:
 ```js
 { BeeSon, TypeManager } = require('@fairdatasociety/beeson')
+// or
+// { BeeSon, TypeManager } = require('./dist/index.js')
 
 // initialize BeeSon object
 beeSon1 = new BeeSon({ json: 123 })
@@ -319,7 +324,7 @@ This example shows how to handle a root object in a SuperBeeSon way based on the
 but every _container type_ can be SuperBeeSon so that many distinct type definitions can be referenced in one BeeSon object.
 
 ```js
-{ BeeSon, Utils } = require('./dist/index.js')
+{ BeeSon, Utils } = require('@fairdatasociety/beeson')
 
 json = {
     name: 'john coke',
