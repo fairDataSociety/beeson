@@ -78,6 +78,13 @@ type NullableContainerBeeSon<T extends JsonValue> = T extends JsonMap<unknown>
   ? BeeSon<Nullable<T>>
   : never
 
+/**
+ * Class to handle BeeSon values.
+ *
+ * @param params JSON value that you want to handle or with the TypeSpecificationManager, its structure defintion
+ *  for JSON value initialization, pass { json } for params, where `json` is a property containing your json value
+ *  for TypeSpecification initialization, pass { typeSpecificationManager } where the property is a `TypeSpecification` instance
+ */
 export class BeeSon<T extends JsonValue> {
   private _typeSpecification: TypeSpecification<ValueType<T>>
   private _json: T | undefined
@@ -93,6 +100,10 @@ export class BeeSon<T extends JsonValue> {
 
   // Setters/getters
 
+  /**
+   * The serialization of the TypeSpecification will happen with the TypeSpecifications' Swarm hash reference
+   * instead of serializing the whole typeSpecificaiton
+   */
   public get superBeeSon(): boolean {
     return this._typeSpecification.superBeeSon
   }
@@ -101,11 +112,17 @@ export class BeeSon<T extends JsonValue> {
     this._typeSpecification.superBeeSon = value
   }
 
+  /** BeeSon type */
+  public get type(): Type {
+    return this._typeSpecification.type
+  }
+
   /** TypeSpecification manager instance of the BeeSon value */
   public get typeSpecificationManager(): TypeSpecification<ValueType<T>> {
     return this._typeSpecification
   }
 
+  /** JSON value value according to its corresponding TypeSpecification or Type */
   public get json(): T {
     if (this._json === undefined) {
       throw new JsonValueUndefinedError()
@@ -117,9 +134,6 @@ export class BeeSon<T extends JsonValue> {
     return this._json
   }
 
-  /**
-   * Set BeeSon value according to its corresponding TypeSpecification or Type
-   */
   public set json(value: T) {
     this._typeSpecification.assertJsonValue(value)
 
@@ -159,6 +173,12 @@ export class BeeSon<T extends JsonValue> {
     this._json = value
   }
 
+  /**
+   * Translate the in memory TypeSpecificationManager into bytes
+   *
+   * @param options withoutBlobHeader used mainly at container types
+   * @returns bytes in Uint8Array
+   */
   public serialize(options?: { withoutBlobHeader?: boolean }): Uint8Array {
     const withoutBlobHeader = options?.withoutBlobHeader || false
     const dna = this.serializeDna(withoutBlobHeader)
@@ -167,7 +187,14 @@ export class BeeSon<T extends JsonValue> {
     return new Uint8Array([...dna, ...dataImplementation])
   }
 
-  /** deserialise unpacked data */
+  /**
+   * Instantiate this class from bytes
+   *
+   * @param data DNA datablob (header + typeSpecification)
+   * @param header BeeSon header
+   * @param storageLoader used to resolve SuperBeeSon TypeSpecification references
+   * @returns instance of this class
+   */
   public static async deserialize(
     data: Uint8Array,
     header?: Header<Type>,
@@ -197,6 +224,7 @@ export class BeeSon<T extends JsonValue> {
     return this._typeSpecification.serialize(withoutBlobHeader)
   }
 
+  /** deserialize data implementation of a BeeSon from bytes */
   public async deserializeData(data: Uint8Array) {
     const decryptedData = new Uint8Array([...data])
     // numbers
@@ -301,6 +329,7 @@ export class BeeSon<T extends JsonValue> {
     throw new NotSupportedTypeError(this.typeSpecificationManager.type)
   }
 
+  /** Set a children element to nullable in a nullableContainer */
   public setIndexNullable(index: keyof T, nullable: boolean) {
     if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
       for (const [typeDefIndex, typeDefinition] of this._typeSpecification.typeDefinitions.entries()) {
@@ -525,6 +554,7 @@ export class BeeSon<T extends JsonValue> {
     this.json = arr as T
   }
 
+  /** Get the instance of a containerType of which children can be nulls */
   public getNullableContainer(): NullableContainerBeeSon<T> {
     const typeSpecificationManager = this._typeSpecification.getNullableTypeSpecification()
     const newBeeSon = new BeeSon({ typeSpecificationManager })

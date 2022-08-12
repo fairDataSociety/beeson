@@ -124,20 +124,30 @@ type NullableContainerTypeSpecification<T extends Type> = T extends Type.array
   ? TypeSpecification<Type.nullableObject>
   : never
 
+/**
+ * Defines the interpretation of the Data Implementation in BeeSon
+ *
+ * It indicates in what type the BeeSon value is as well as its children elements in case of container types.
+ * Other flags can be set that modify the serialization or the possible values of the BeeSon value such as
+ * nullability or typeSpecification marshalling
+ */
 export class TypeSpecification<T extends Type> {
   constructor(
+    /** BeeSon version */
     private _version: Version,
+    /** indicates the type of the BeeSon */
     private _type: T,
+    /** in case of container types its children are listed here */
     private _typeDefinitions: TypeDefinitions<T>,
-    /** if the JSONValue is nullable according to its parent container's field defintion */
+    /** set by the _nullable_ parent container whether the BeeSon value can be null or not */
     public nullable = false,
     /**
-     * The serialisation will happen with the DNA referenced short version instead of serializing the typeSpecificaiton
-     * OR the deserialization happened from DNA implementation
+     * The serialization of the TypeSpecification will happen with its Swarm hash reference instead of serializing the whole typeSpecificaiton
      */
     public superBeeSon = false,
   ) {}
 
+  /** BeeSon marshalling version */
   public get version(): Version {
     return this._version
   }
@@ -146,13 +156,13 @@ export class TypeSpecification<T extends Type> {
     return this._type
   }
 
+  /** in case of container types its children are listed here */
   public get typeDefinitions(): TypeDefinitions<T> {
     return this._typeDefinitions
   }
 
   /**
    * Asserts whether the given JsonValue satisfies its corresponding TypeSpecification
-   * Container typed values have shallow assertion as their elements will have own BeeSon object anyway.
    */
   // eslint-disable-next-line complexity
   public assertJsonValue(value: unknown): asserts value is JsonValue {
@@ -232,6 +242,7 @@ export class TypeSpecification<T extends Type> {
     )
   }
 
+  /** Get DNA Object of the BeeSon which is a JSON representation of the Header and the TypeSpecification */
   public getDnaObject(): DnaObject<T> {
     if (isTypeSpecificaitonManagerType(this, Type.array)) {
       return {
@@ -290,7 +301,118 @@ export class TypeSpecification<T extends Type> {
     }
   }
 
-  /** `withoutBlobHeader` used mainly at container types */
+  /**
+   * Load DNA Object of the BeeSon which is a JSON representation of the Header and the TypeSpecification
+   * @returns instance of this class
+   */
+  public static loadDnaObject<T extends Type>(
+    typeSpecification: DnaObject<T>,
+    version = Version.unpackedV0_1,
+    nullable = false,
+  ): TypeSpecification<T> {
+    assertVersion(version)
+
+    if (isDnaObjectType(typeSpecification, Type.array)) {
+      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              version,
+            ) as TypeSpecification<any>,
+          }),
+        }
+      })
+
+      return new TypeSpecification(
+        version,
+        Type.array,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
+      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              version,
+              child.nullable,
+            ) as TypeSpecification<any>,
+          }),
+        }
+      })
+
+      return new TypeSpecification(
+        version,
+        Type.nullableArray,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.object)) {
+      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              version,
+            ) as TypeSpecification<any>,
+          }),
+          marker: child.marker,
+        }
+      })
+
+      return new TypeSpecification(
+        version,
+        Type.object,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
+    } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
+      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
+        return {
+          segmentLength: child.segmentLength,
+          beeSon: new BeeSon({
+            typeSpecificationManager: TypeSpecification.loadDnaObject(
+              child.typeSpecification,
+              version,
+              child.nullable,
+            ) as TypeSpecification<any>,
+          }),
+          marker: child.marker,
+        }
+      })
+
+      return new TypeSpecification(
+        version,
+        Type.nullableObject,
+        typeDefinitions,
+        nullable,
+        typeSpecification.superBeeSon,
+      ) as TypeSpecification<T>
+    }
+
+    return new TypeSpecification(
+      version,
+      typeSpecification.type,
+      null as TypeDefinitions<T>,
+      nullable,
+      typeSpecification.superBeeSon,
+    )
+  }
+
+  /**
+   * Translate the in memory TypeSpecificationManager into bytes
+   *
+   * @param withoutBlobHeader used mainly at container types
+   * @returns bytes in Uint8Array
+   */
   public serialize(withoutBlobHeader = false): Uint8Array {
     const header = withoutBlobHeader ? new Uint8Array() : this.typeSpecificationHeader()
 
@@ -330,6 +452,7 @@ export class TypeSpecification<T extends Type> {
     return new Uint8Array([...header, ...typeSpecification])
   }
 
+  /** Header of the BeeSon in bytes */
   public typeSpecificationHeader(): Bytes<32> {
     return new Uint8Array([
       ...serializeVersion(this._version),
@@ -339,10 +462,11 @@ export class TypeSpecification<T extends Type> {
   }
 
   /**
-   * Initialize TypeManager class
+   * Instantiate this class from bytes
    *
    * @param data DNA datablob (header + typeSpecification)
    * @param header BeeSon header
+   * @param storageLoader used to resolve SuperBeeSon TypeSpecification references
    * @returns typeSpecificationManager with the processed bytes length
    */
   public static async deserialize<T extends Type>(
@@ -475,118 +599,11 @@ export class TypeSpecification<T extends Type> {
     }
   }
 
-  public static loadDnaRootObject<T extends Type>(typeSpecification: DnaRootObject<T>): TypeSpecification<T> {
-    return TypeSpecification.loadDnaObject(typeSpecification, typeSpecification.version)
-  }
-
-  public static loadDnaObject<T extends Type>(
-    typeSpecification: DnaObject<T>,
-    version = Version.unpackedV0_1,
-    nullable = false,
-  ): TypeSpecification<T> {
-    assertVersion(version)
-
-    if (isDnaObjectType(typeSpecification, Type.array)) {
-      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
-        return {
-          segmentLength: child.segmentLength,
-          beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-            ) as TypeSpecification<any>,
-          }),
-        }
-      })
-
-      return new TypeSpecification(
-        version,
-        Type.array,
-        typeDefinitions,
-        nullable,
-        typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
-    } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
-      const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
-        return {
-          segmentLength: child.segmentLength,
-          beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-              child.nullable,
-            ) as TypeSpecification<any>,
-          }),
-        }
-      })
-
-      return new TypeSpecification(
-        version,
-        Type.nullableArray,
-        typeDefinitions,
-        nullable,
-        typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
-    } else if (isDnaObjectType(typeSpecification, Type.object)) {
-      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
-        return {
-          segmentLength: child.segmentLength,
-          beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-            ) as TypeSpecification<any>,
-          }),
-          marker: child.marker,
-        }
-      })
-
-      return new TypeSpecification(
-        version,
-        Type.object,
-        typeDefinitions,
-        nullable,
-        typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
-    } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
-      const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
-        return {
-          segmentLength: child.segmentLength,
-          beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-              child.nullable,
-            ) as TypeSpecification<any>,
-          }),
-          marker: child.marker,
-        }
-      })
-
-      return new TypeSpecification(
-        version,
-        Type.nullableObject,
-        typeDefinitions,
-        nullable,
-        typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
-    }
-
-    return new TypeSpecification(
-      version,
-      typeSpecification.type,
-      null as TypeDefinitions<T>,
-      nullable,
-      typeSpecification.superBeeSon,
-    )
-  }
-
-  // mutate methods
-
   /**
    * Set container object element nullable or disallow to be that
+   *
    * @throws if the stored json value of the element has conflict with the nullable typeSpecification parameter
-   * | (e.g.) TypeSpecification was nullable before and the json value null, and user changes nullable to false
+   *  (e.g.) TypeSpecification was nullable before and the json value null, and user changes nullable to false
    */
   public setTypeDefinitionNullable(typeDefIndex: number, nullable: boolean) {
     if (!this._typeDefinitions) throw new Error(`Type does not handle a container type`)
@@ -616,6 +633,7 @@ export class TypeSpecification<T extends Type> {
     this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
   }
 
+  /** get a version of this container typed BeeSon of which elements are nullable */
   public getNullableTypeSpecification(): NullableContainerTypeSpecification<T> {
     if (isTypeSpecificaitonManagerType(this, Type.array)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
@@ -672,6 +690,7 @@ export class TypeSpecification<T extends Type> {
   }
 }
 
+/** generates the whole BeeSon DNA for any given JSON value */
 export function generateDna<T extends JsonValue>(json: T): TypeSpecification<ValueType<T>> {
   const type = identifyType(json)
   const version = Version.unpackedV0_1

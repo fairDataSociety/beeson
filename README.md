@@ -244,7 +244,7 @@ This compiled JS files and declarations will be placed in the `dist` folder of t
 You can import the followings directly from `@fairdatasociety/beeson`:
 
 * Type          # enum for [types](#Types) used in BeeSon
-* BeeSon        # BeeSon class that you can initialize with either JSON object or AbiManager
+* BeeSon        # BeeSon class that you can initialize with either JSON object or TypeSpecification
 * TypeSpecification    # TypeSpecification class that defines JSON object structures/types and its TypeScpecification
 
 Work with non-container types:

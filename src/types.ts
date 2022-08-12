@@ -8,7 +8,10 @@ export type JsonMap<T> = {
 
 export type Reference = Bytes<32 | 64>
 
-/** string types, numeric types, misc types, container types */
+/**
+ * All basic BeeSon types that can be mapped from JSON values such as
+ * string types, numeric types, misc types, container types
+ */
 export enum Type {
   null = 1,
   boolean = 2,
