@@ -24,7 +24,6 @@ import {
   segmentSize,
   SEGMENT_SIZE,
 } from '../utils'
-import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 
 const OBJECT_TYPE_DEF_LENGTH = 8
 
@@ -281,10 +280,7 @@ function serializeTypeDefinitions(
       type = SUPER_BEESON_TYPE
       // calculate typeSpecification's reference (Swarm hash)
       const manager = typeDefinition.beeSon.typeManager
-      manager.superBeeSon = false
-      const typeSpecData = manager.serialize()
-      manager.superBeeSon = true
-      const typeSpecRef = makeChunkedFile(typeSpecData).address()
+      const typeSpecRef = manager.swarmAddress()
       superTypeRefArray.push(typeSpecRef)
     }
 

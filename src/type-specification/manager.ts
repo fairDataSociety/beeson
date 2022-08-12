@@ -443,6 +443,19 @@ export class TypeManager<T extends Type> {
   }
 
   /**
+   * Gives back the Swarm Address of a DNA (header + typeSpecification)
+   * This address is used at superBeeSon type references
+   */
+  public swarmAddress(): Bytes<32> {
+    const superBeeSon = this.superBeeSon
+    if (superBeeSon) this.superBeeSon = false
+    const bytes = this.serialize()
+    if (superBeeSon) this.superBeeSon = true
+
+    return makeChunkedFile(bytes).address()
+  }
+
+  /**
    * Instantiate this class from bytes
    *
    * @param data DNA datablob (header + typeSpecification)

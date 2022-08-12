@@ -1,4 +1,3 @@
-import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 import { TypeManager, Header, TypeDefinitionA } from '.'
 import { BeeSon } from '../beeson'
 import { BitVector } from '../bitvector'
@@ -234,10 +233,7 @@ function serializeTypeDefinitions(typeDefinitions: TypeDefinitionA[]): RSerializ
       )
       // calculate typeSpecification's reference (Swarm hash)
       const manager = typeDefinition.beeSon.typeManager
-      manager.superBeeSon = false
-      const typeSpecData = manager.serialize()
-      manager.superBeeSon = true
-      const typeSpecRef = makeChunkedFile(typeSpecData).address()
+      const typeSpecRef = manager.swarmAddress()
       superTypeRefArray.push(typeSpecRef)
     } else {
       typeDefArray.push(
