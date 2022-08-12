@@ -1,4 +1,4 @@
-import { JsonMap, JsonValue } from './types'
+import { JsonMap, JsonValue, Reference } from './types'
 import { keccak256, Message } from 'js-sha3'
 import { isSwarmCid } from './marshalling/address-serializer'
 
@@ -297,4 +297,29 @@ export function paddingToSegment(segmentCount: number, data: Uint8Array): Uint8A
   }
 
   return data
+}
+
+export function createStorage() {
+  const storage = new Map<string, Uint8Array>()
+
+  const storageSaverSync = (reference: Reference, data: Uint8Array) => {
+    storage.set(reference.toString(), data)
+  }
+
+  const storageLoader = async (reference: Reference): Promise<Uint8Array> => {
+    return new Promise((resolve, reject) => {
+      const data = storage.get(reference.toString())
+      if (!data) {
+        reject('404 on Reference')
+
+        return
+      }
+      resolve(data)
+    })
+  }
+
+  return {
+    storageLoader,
+    storageSaverSync,
+  }
 }

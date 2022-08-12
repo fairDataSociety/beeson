@@ -1,8 +1,7 @@
 import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 import { BeeSon, Type } from '../../src'
 import { HEADER_BYTE_LENGTH, TypeSpecification } from '../../src/type-specification'
-import { Reference } from '../../src/types'
-import { SEGMENT_SIZE } from '../../src/utils'
+import { createStorage, SEGMENT_SIZE } from '../../src/utils'
 export { Reference } from '../../src/types'
 
 interface TestBuddy {
@@ -12,31 +11,6 @@ interface TestBuddy {
 }
 interface TestDataMain extends TestBuddy {
   buddies: TestBuddy[]
-}
-
-function createStorage() {
-  const storage = new Map<string, Uint8Array>()
-
-  const storageSaverSync = (reference: Reference, data: Uint8Array) => {
-    storage.set(reference.toString(), data)
-  }
-
-  const storageLoader = async (reference: Reference): Promise<Uint8Array> => {
-    return new Promise((resolve, reject) => {
-      const data = storage.get(reference.toString())
-      if (!data) {
-        reject('404 on Reference')
-
-        return
-      }
-      resolve(data)
-    })
-  }
-
-  return {
-    storageLoader,
-    storageSaverSync,
-  }
 }
 
 describe('superbeeson', () => {
