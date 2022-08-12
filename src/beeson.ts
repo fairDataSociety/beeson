@@ -1,8 +1,8 @@
 import {
-  TypeSpecification,
+  TypeManager,
   generateDna,
   Header,
-  isTypeSpecificaitonManagerType,
+  isTypeManagerType,
   TypeDefinitionO,
   isTypeManagerContainerType,
 } from './type-specification'
@@ -47,7 +47,7 @@ import {
 } from './utils'
 
 function isBeeSonType<T extends Type>(beeSon: unknown, type: T): beeSon is BeeSon<TypeValue<T>> {
-  return (beeSon as BeeSon<JsonValue>).typeSpecificationManager.type === type
+  return (beeSon as BeeSon<JsonValue>).typeManager.type === type
 }
 
 interface JsonParams<T extends JsonValue> {
@@ -55,11 +55,11 @@ interface JsonParams<T extends JsonValue> {
 }
 
 interface DnaParams<T extends JsonValue = JsonValue> {
-  typeSpecificationManager: TypeSpecification<ValueType<T>>
+  typeManager: TypeManager<ValueType<T>>
 }
 
 function isDnaParams<T extends JsonValue>(params: unknown): params is DnaParams<T> {
-  return typeof params === 'object' && Object.keys(params as object).includes('typeSpecificationManager')
+  return typeof params === 'object' && Object.keys(params as object).includes('typeManager')
 }
 
 function isJsonParams<T extends JsonValue>(params: unknown): params is JsonParams<T> {
@@ -81,45 +81,45 @@ type NullableContainerBeeSon<T extends JsonValue> = T extends JsonMap<unknown>
 /**
  * Class to handle BeeSon values.
  *
- * @param params JSON value that you want to handle or with the TypeSpecificationManager, its structure defintion
+ * @param params JSON value that you want to handle or with the TypeManager, its structure defintion
  *  for JSON value initialization, pass { json } for params, where `json` is a property containing your json value
- *  for TypeSpecification initialization, pass { typeSpecificationManager } where the property is a `TypeSpecification` instance
+ *  for TypeManager initialization, pass { typeManager } where the property is a `TypeManager` instance
  */
 export class BeeSon<T extends JsonValue> {
-  private _typeSpecification: TypeSpecification<ValueType<T>>
+  private _typeManager: TypeManager<ValueType<T>>
   private _json: T | undefined
 
   constructor(params: JsonParams<T> | DnaParams<T>) {
     if (isDnaParams(params)) {
-      this._typeSpecification = params.typeSpecificationManager
+      this._typeManager = params.typeManager
     } else if (isJsonParams(params)) {
       this._json = params.json
-      this._typeSpecification = generateDna(this._json)
+      this._typeManager = generateDna(this._json)
     } else throw new Error(`Invalid BeeSon constructor parameters`)
   }
 
   // Setters/getters
 
   /**
-   * The serialization of the TypeSpecification will happen with the TypeSpecifications' Swarm hash reference
-   * instead of serializing the whole typeSpecificaiton
+   * The serialization of the TypeManager will happen with the Swarm hash reference of the header and the TypeSpecification
+   * instead of serializing the whole TypeSpecificaiton
    */
   public get superBeeSon(): boolean {
-    return this._typeSpecification.superBeeSon
+    return this._typeManager.superBeeSon
   }
 
   public set superBeeSon(value: boolean) {
-    this._typeSpecification.superBeeSon = value
+    this._typeManager.superBeeSon = value
   }
 
   /** BeeSon type */
   public get type(): Type {
-    return this._typeSpecification.type
+    return this._typeManager.type
   }
 
-  /** TypeSpecification manager instance of the BeeSon value */
-  public get typeSpecificationManager(): TypeSpecification<ValueType<T>> {
-    return this._typeSpecification
+  /** TypeManager instance of the BeeSon value */
+  public get typeManager(): TypeManager<ValueType<T>> {
+    return this._typeManager
   }
 
   /** JSON value value according to its corresponding TypeSpecification or Type */
@@ -135,18 +135,18 @@ export class BeeSon<T extends JsonValue> {
   }
 
   public set json(value: T) {
-    this._typeSpecification.assertJsonValue(value)
+    this._typeManager.assertJsonValue(value)
 
-    if (this._typeSpecification.nullable && isNull(value)) {
+    if (this._typeManager.nullable && isNull(value)) {
       this._json = value
 
       return
     }
     if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.array) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)
+      isTypeManagerType(this._typeManager, Type.array) ||
+      isTypeManagerType(this._typeManager, Type.nullableArray)
     ) {
-      for (const [index, typeDefition] of this._typeSpecification.typeDefinitions.entries()) {
+      for (const [index, typeDefition] of this._typeManager.typeDefinitions.entries()) {
         try {
           const arrayItem = (value as Array<unknown>)[index]
           typeDefition.beeSon.json = arrayItem as JsonValue
@@ -155,10 +155,10 @@ export class BeeSon<T extends JsonValue> {
         }
       }
     } else if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.object) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
+      isTypeManagerType(this._typeManager, Type.object) ||
+      isTypeManagerType(this._typeManager, Type.nullableObject)
     ) {
-      for (const typeDefinition of this._typeSpecification.typeDefinitions) {
+      for (const typeDefinition of this._typeManager.typeDefinitions) {
         const def = typeDefinition as TypeDefinitionO // TODO create bug report in typescript
         const marker = def.marker
         try {
@@ -174,7 +174,7 @@ export class BeeSon<T extends JsonValue> {
   }
 
   /**
-   * Translate the in memory TypeSpecificationManager into bytes
+   * Translate this in-memory instance into bytes
    *
    * @param options withoutBlobHeader used mainly at container types
    * @returns bytes in Uint8Array
@@ -200,12 +200,8 @@ export class BeeSon<T extends JsonValue> {
     header?: Header<Type>,
     storageLoader?: StorageLoader,
   ): Promise<BeeSon<JsonValue>> {
-    const { typeSpecificationManager, processedBytes } = await TypeSpecification.deserialize(
-      data,
-      header,
-      storageLoader,
-    )
-    const beeSon = new BeeSon({ typeSpecificationManager })
+    const { typeManager, processedBytes } = await TypeManager.deserialize(data, header, storageLoader)
+    const beeSon = new BeeSon({ typeManager })
     const dataImplementation = data.slice(processedBytes)
     await beeSon.deserializeData(dataImplementation)
 
@@ -213,7 +209,7 @@ export class BeeSon<T extends JsonValue> {
       if (beeSon.json === 'undefined') throw Error()
     } catch (e) {
       throw new Error(
-        `Data Implementation deserialization is impossible with type ${beeSon.typeSpecificationManager.type}`,
+        `Data Implementation deserialization is impossible with type ${beeSon.typeManager.type}`,
       )
     }
 
@@ -221,57 +217,57 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private serializeDna(withoutBlobHeader: boolean): Uint8Array {
-    return this._typeSpecification.serialize(withoutBlobHeader)
+    return this._typeManager.serialize(withoutBlobHeader)
   }
 
   /** deserialize data implementation of a BeeSon from bytes */
   public async deserializeData(data: Uint8Array) {
     const decryptedData = new Uint8Array([...data])
     // numbers
-    if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.float32)) {
+    if (isTypeManagerType(this._typeManager, Type.float32)) {
       this.json = deserializeFloat(
-        this._typeSpecification.type as Type.float32,
+        this._typeManager.type as Type.float32,
         decryptedData.slice(SEGMENT_SIZE - 4) as Bytes<4>,
       ) as T
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.float64)) {
+    } else if (isTypeManagerType(this._typeManager, Type.float64)) {
       this.json = deserializeFloat(
-        this._typeSpecification.type as Type.float64,
+        this._typeManager.type as Type.float64,
         decryptedData.slice(SEGMENT_SIZE - 8) as Bytes<8>,
       ) as T
     } else if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.int8) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.uint8)
+      isTypeManagerType(this._typeManager, Type.int8) ||
+      isTypeManagerType(this._typeManager, Type.uint8)
     ) {
-      this.json = deserializeInt(this._typeSpecification.type, decryptedData.slice(SEGMENT_SIZE - 1)) as T
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.int16)) {
-      this.json = deserializeInt(this._typeSpecification.type, decryptedData.slice(SEGMENT_SIZE - 2)) as T
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.int32)) {
-      this.json = deserializeInt(this._typeSpecification.type, decryptedData.slice(SEGMENT_SIZE - 4)) as T
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.int64)) {
-      this.json = deserializeInt(this._typeSpecification.type, decryptedData.slice(SEGMENT_SIZE - 8)) as T
+      this.json = deserializeInt(this._typeManager.type, decryptedData.slice(SEGMENT_SIZE - 1)) as T
+    } else if (isTypeManagerType(this._typeManager, Type.int16)) {
+      this.json = deserializeInt(this._typeManager.type, decryptedData.slice(SEGMENT_SIZE - 2)) as T
+    } else if (isTypeManagerType(this._typeManager, Type.int32)) {
+      this.json = deserializeInt(this._typeManager.type, decryptedData.slice(SEGMENT_SIZE - 4)) as T
+    } else if (isTypeManagerType(this._typeManager, Type.int64)) {
+      this.json = deserializeInt(this._typeManager.type, decryptedData.slice(SEGMENT_SIZE - 8)) as T
     }
     // string
-    else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.string)) {
+    else if (isTypeManagerType(this._typeManager, Type.string)) {
       this.json = deserializeString(decryptedData) as T
     }
     // boolean
-    else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.boolean)) {
+    else if (isTypeManagerType(this._typeManager, Type.boolean)) {
       this.json = deserializeBoolean(decryptedData.slice(SEGMENT_SIZE - 1) as Bytes<1>) as T
     }
     // misc types
-    else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.swarmCac)) {
+    else if (isTypeManagerType(this._typeManager, Type.swarmCac)) {
       this.json = deserializeSwarmCac(decryptedData) as T
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.swarmSoc)) {
+    } else if (isTypeManagerType(this._typeManager, Type.swarmSoc)) {
       this.json = deserializeSwarmSoc(decryptedData) as T
     }
     // container types
-    else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.object)) {
+    else if (isTypeManagerType(this._typeManager, Type.object)) {
       await this.deserializeObject(decryptedData)
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.array)) {
+    } else if (isTypeManagerType(this._typeManager, Type.array)) {
       await this.deserializeArray(decryptedData)
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)) {
+    } else if (isTypeManagerType(this._typeManager, Type.nullableArray)) {
       await this.deserializeNullableArray(decryptedData)
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
+    } else if (isTypeManagerType(this._typeManager, Type.nullableObject)) {
       await this.deserializeNullableObject(decryptedData)
     }
   }
@@ -322,47 +318,43 @@ export class BeeSon<T extends JsonValue> {
       return serializeSwarmSoc(this.json as SwarmFeedCid)
     }
     // container types
-    if (isTypeManagerContainerType(this._typeSpecification)) {
+    if (isTypeManagerContainerType(this._typeManager)) {
       return this.serializeContainerElementsData()
     }
 
-    throw new NotSupportedTypeError(this.typeSpecificationManager.type)
+    throw new NotSupportedTypeError(this.typeManager.type)
   }
 
   /** Set a children element to nullable in a nullableContainer */
   public setIndexNullable(index: keyof T, nullable: boolean) {
-    if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
-      for (const [typeDefIndex, typeDefinition] of this._typeSpecification.typeDefinitions.entries()) {
+    if (isTypeManagerType(this._typeManager, Type.nullableObject)) {
+      for (const [typeDefIndex, typeDefinition] of this._typeManager.typeDefinitions.entries()) {
         const typeDef = typeDefinition as TypeDefinitionO
         if (typeDef.marker === index) {
-          return this._typeSpecification.setTypeDefinitionNullable(typeDefIndex, nullable)
+          return this._typeManager.setTypeDefinitionNullable(typeDefIndex, nullable)
         }
       }
 
       throw new Error(`Index "${String(index)} has been not found"`)
-    } else if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)) {
-      return this._typeSpecification.setTypeDefinitionNullable(index as number, nullable)
+    } else if (isTypeManagerType(this._typeManager, Type.nullableArray)) {
+      return this._typeManager.setTypeDefinitionNullable(index as number, nullable)
     }
-    throw new Error(
-      `BeeSon object is not a nullable container type. It has type: ${this._typeSpecification.type}`,
-    )
+    throw new Error(`BeeSon object is not a nullable container type. It has type: ${this._typeManager.type}`)
   }
 
   private serializeContainerElementsData(): Uint8Array {
-    if (!isTypeManagerContainerType(this._typeSpecification)) {
-      throw new Error(
-        `BeeSon is not a (nullable) container type. it has type: ${this.typeSpecificationManager.type}`,
-      )
+    if (!isTypeManagerContainerType(this._typeManager)) {
+      throw new Error(`BeeSon is not a (nullable) container type. it has type: ${this.typeManager.type}`)
     }
     const containerBytes: Uint8Array[] = []
     if (
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) ||
-      isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
+      isTypeManagerType(this._typeManager, Type.nullableArray) ||
+      isTypeManagerType(this._typeManager, Type.nullableObject)
     ) {
       containerBytes.push(this.serializeContainerElementsNulls()) // nulls array is serialized here
 
-      for (const typeDefition of this._typeSpecification.typeDefinitions) {
-        if (!(typeDefition.beeSon._typeSpecification.nullable && typeDefition.beeSon.json === null)) {
+      for (const typeDefition of this._typeManager.typeDefinitions) {
+        if (!(typeDefition.beeSon._typeManager.nullable && typeDefition.beeSon.json === null)) {
           containerBytes.push(
             paddingToSegment(
               typeDefition.segmentLength,
@@ -372,8 +364,7 @@ export class BeeSon<T extends JsonValue> {
         }
       }
     } else {
-      for (const typeDefition of (this._typeSpecification as TypeSpecification<ContainerTypes>)
-        .typeDefinitions) {
+      for (const typeDefition of (this._typeManager as TypeManager<ContainerTypes>).typeDefinitions) {
         containerBytes.push(
           paddingToSegment(
             typeDefition.segmentLength,
@@ -389,18 +380,16 @@ export class BeeSon<T extends JsonValue> {
   /** Serialize Null bitvector for nullable containers in the data implementation */
   private serializeContainerElementsNulls(): Uint8Array {
     if (
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) &&
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
+      !isTypeManagerType(this._typeManager, Type.nullableArray) &&
+      !isTypeManagerType(this._typeManager, Type.nullableObject)
     ) {
-      throw new Error(
-        `BeeSon is not a nullable container type. it has type: ${this.typeSpecificationManager.type}`,
-      )
+      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.typeManager.type}`)
     }
 
     // const
-    const bv = new BitVector(this._typeSpecification.typeDefinitions.length)
-    if (isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
-      for (const [index, typeDefinition] of this._typeSpecification.typeDefinitions.entries()) {
+    const bv = new BitVector(this._typeManager.typeDefinitions.length)
+    if (isTypeManagerType(this._typeManager, Type.nullableObject)) {
+      for (const [index, typeDefinition] of this._typeManager.typeDefinitions.entries()) {
         const typeDef = typeDefinition as TypeDefinitionO
         if ((this._json as Record<string, unknown>)[typeDef.marker] === null) {
           bv.setBit(index)
@@ -408,7 +397,7 @@ export class BeeSon<T extends JsonValue> {
       }
     } else {
       // it is nullableArray
-      for (const [index] of this._typeSpecification.typeDefinitions.entries()) {
+      for (const [index] of this._typeManager.typeDefinitions.entries()) {
         if ((this._json as unknown[])[index] === null) {
           bv.setBit(index)
         }
@@ -421,37 +410,32 @@ export class BeeSon<T extends JsonValue> {
   /** Deserialize Null bitvector for nullable containers in the data implementation */
   private deserializeContainerElementsNulls(bitVectorSegments: Uint8Array): BitVector {
     if (
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray) &&
-      !isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)
+      !isTypeManagerType(this._typeManager, Type.nullableArray) &&
+      !isTypeManagerType(this._typeManager, Type.nullableObject)
     ) {
-      throw new Error(
-        `BeeSon is not a nullable container type. it has type: ${this.typeSpecificationManager.type}`,
-      )
+      throw new Error(`BeeSon is not a nullable container type. it has type: ${this.typeManager.type}`)
     }
 
-    const bitVectorBytes = bitVectorSegments.slice(
-      0,
-      Math.ceil(this._typeSpecification.typeDefinitions.length / 8),
-    )
+    const bitVectorBytes = bitVectorSegments.slice(0, Math.ceil(this._typeManager.typeDefinitions.length / 8))
 
-    return new BitVector(this._typeSpecification.typeDefinitions.length, bitVectorBytes)
+    return new BitVector(this._typeManager.typeDefinitions.length, bitVectorBytes)
   }
 
   private async deserializeObject(data: Uint8Array) {
-    if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.object)) {
-      throw new Error(`The TypeSpecification is not a ${Type.object}`)
+    if (!isTypeManagerType(this._typeManager, Type.object)) {
+      throw new Error(`The  is not a ${Type.object}`)
     }
     const obj: Record<string, unknown> = {}
     let segmentOffset = 0
-    for (const typeDefinition of this._typeSpecification.typeDefinitions) {
+    for (const typeDefinition of this._typeManager.typeDefinitions) {
       const typeDef = typeDefinition as TypeDefinitionO
       const key = typeDef.marker
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+      if (isContainerType(typeDef.beeSon.typeManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          type: typeDef.beeSon.typeSpecificationManager.type,
-          version: typeDef.beeSon.typeSpecificationManager.version,
+          type: typeDef.beeSon.typeManager.type,
+          version: typeDef.beeSon.typeManager.version,
         })
         obj[key] = typeDef.beeSon.json
       } else {
@@ -464,13 +448,13 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private async deserializeNullableObject(data: Uint8Array) {
-    if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableObject)) {
-      throw new Error(`The TypeSpecification is not a ${Type.object}`)
+    if (!isTypeManagerType(this._typeManager, Type.nullableObject)) {
+      throw new Error(`The TypeManager is not a ${Type.object}`)
     }
     const obj: Record<string, unknown> = {}
-    let segmentOffset = segmentSize(Math.ceil(this._typeSpecification.typeDefinitions.length / 8))
+    let segmentOffset = segmentSize(Math.ceil(this._typeManager.typeDefinitions.length / 8))
     const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
-    for (const [i, typeDefinition] of this._typeSpecification.typeDefinitions.entries()) {
+    for (const [i, typeDefinition] of this._typeManager.typeDefinitions.entries()) {
       const typeDef = typeDefinition as TypeDefinitionO
       const key = typeDef.marker
       if (bitVector.getBit(i)) {
@@ -481,10 +465,10 @@ export class BeeSon<T extends JsonValue> {
       }
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+      if (isContainerType(typeDef.beeSon.typeManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          type: typeDef.beeSon.typeSpecificationManager.type,
-          version: typeDef.beeSon.typeSpecificationManager.version,
+          type: typeDef.beeSon.typeManager.type,
+          version: typeDef.beeSon.typeManager.version,
         })
         obj[key] = typeDef.beeSon.json
       } else {
@@ -497,13 +481,13 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private async deserializeNullableArray(data: Uint8Array) {
-    if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.nullableArray)) {
-      throw new Error(`The TypeSpecification is not a ${Type.object}`)
+    if (!isTypeManagerType(this._typeManager, Type.nullableArray)) {
+      throw new Error(`The TypeManager is not a ${Type.object}`)
     }
     const arr: unknown[] = []
-    let segmentOffset = segmentSize(Math.ceil(this._typeSpecification.typeDefinitions.length / 8))
+    let segmentOffset = segmentSize(Math.ceil(this._typeManager.typeDefinitions.length / 8))
     const bitVector = this.deserializeContainerElementsNulls(data.slice(0, segmentOffset * SEGMENT_SIZE))
-    for (const [i, typeDefinition] of this._typeSpecification.typeDefinitions.entries()) {
+    for (const [i, typeDefinition] of this._typeManager.typeDefinitions.entries()) {
       if (bitVector.getBit(i)) {
         typeDefinition.beeSon.json = null
         arr.push(typeDefinition.beeSon.json)
@@ -514,10 +498,10 @@ export class BeeSon<T extends JsonValue> {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+      if (isContainerType(typeDef.beeSon.typeManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          type: typeDef.beeSon.typeSpecificationManager.type,
-          version: typeDef.beeSon.typeSpecificationManager.version,
+          type: typeDef.beeSon.typeManager.type,
+          version: typeDef.beeSon.typeManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
@@ -530,19 +514,19 @@ export class BeeSon<T extends JsonValue> {
   }
 
   private async deserializeArray(data: Uint8Array) {
-    if (!isTypeSpecificaitonManagerType(this._typeSpecification, Type.array)) {
+    if (!isTypeManagerType(this._typeManager, Type.array)) {
       throw new Error(`The TypeSpecification is not a ${Type.object}`)
     }
     const arr: unknown[] = []
     let segmentOffset = 0
-    for (const typeDefinition of this._typeSpecification.typeDefinitions) {
+    for (const typeDefinition of this._typeManager.typeDefinitions) {
       const typeDef = typeDefinition
       const offset = segmentOffset * SEGMENT_SIZE
       const endOffset = typeDef.segmentLength ? offset + typeDef.segmentLength * SEGMENT_SIZE : undefined
-      if (isContainerType(typeDef.beeSon.typeSpecificationManager.type) && !typeDef.beeSon.superBeeSon) {
+      if (isContainerType(typeDef.beeSon.typeManager.type) && !typeDef.beeSon.superBeeSon) {
         typeDef.beeSon = await BeeSon.deserialize(data.slice(offset, endOffset), {
-          type: typeDef.beeSon.typeSpecificationManager.type,
-          version: typeDef.beeSon.typeSpecificationManager.version,
+          type: typeDef.beeSon.typeManager.type,
+          version: typeDef.beeSon.typeManager.version,
         })
         arr.push(typeDef.beeSon.json)
       } else {
@@ -556,8 +540,8 @@ export class BeeSon<T extends JsonValue> {
 
   /** Get the instance of a containerType of which children can be nulls */
   public getNullableContainer(): NullableContainerBeeSon<T> {
-    const typeSpecificationManager = this._typeSpecification.getNullableTypeSpecification()
-    const newBeeSon = new BeeSon({ typeSpecificationManager })
+    const typeManager = this._typeManager.getNullableTypeManager()
+    const newBeeSon = new BeeSon({ typeManager })
     newBeeSon.json = this.json
 
     return newBeeSon as NullableContainerBeeSon<T>

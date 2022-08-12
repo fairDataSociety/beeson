@@ -244,14 +244,14 @@ This compiled JS files and declarations will be placed in the `dist` folder of t
 You can import the followings directly from `@fairdatasociety/beeson`:
 
 * Type                  # enum for [types](#Types) used in BeeSon
-* BeeSon                # BeeSon class that you can initialize with either JSON object or TypeSpecification
-* TypeSpecification     # TypeSpecification class that defines JSON object structures/types and its TypeScpecification
+* BeeSon                # BeeSon class that you can initialize either with JSON value or with TypeManager
+* TypeManager           # TypeManager class that defines JSON object structures/types and its TypeScpecification
 * Utils                 # Utility functions
     * `createStorage`   # that can be used for SuperBeeSon handling at storing and loading TypeManager.
 
 Work with non-container types:
 ```js
-{ BeeSon, TypeSpecification } = require('@fairdatasociety/beeson')
+{ BeeSon, TypeManager } = require('@fairdatasociety/beeson')
 
 // initialize BeeSon object
 beeSon1 = new BeeSon({ json: 123 })
@@ -263,11 +263,11 @@ console.log(beeSon1.json)
 beeSon1.json = 456.789 //throws AssertJsonValueError: Wrong value for type number (integer)...
 beeSon1.json = 'john doe' //throws error as well
 // get JSON description of the TypeScpecification
-typeSpecificaitonJson = beeSon1.typeSpecificationManager.getDnaObject()
+dna = beeSon1.typeManager.getDnaObject()
 // initialize TypeSpecification with this TypeScpecification JSON description
-typeSpecificationManager = TypeSpecification.loadDnaObject(typeSpecificaitonJson)
+typeManager = TypeManager.loadDnaObject(dna)
 // initialize new BeeSon object with the same TypeScpecification that beeSon1 has
-beeSon2 = new BeeSon({ typeSpecificationManager })
+beeSon2 = new BeeSon({ typeManager })
 // set number value for beeSon2
 beeSon2.json = 789
 // serialize beeSon object
@@ -276,7 +276,7 @@ beeSon2Bytes = beeSon2.serialize()
 beeSon2Again = await BeeSon.deserialize(beeSon2Bytes)
 // check its value and type
 console.log(beeSon2Again.json) // 789
-console.log(beeSon2Again.typeSpecificationManager.type)
+console.log(beeSon2Again.typeManager.type)
 ```
 
 The same actions can be done with container types, but it also can handle nulls on its element types:
@@ -296,12 +296,12 @@ json.id = 'ID3'
 json.buddies[0].name = 'buddha'
 beeSon1.json = json
 // print type
-console.log(beeSon1.typeSpecificationManager.type)
+console.log(beeSon1.typeManager.type)
 // try to set ID null
 json.id = null
 beeSon1.json = json // throws error
 // transform TypeSpecification definition from strictObject to nullableObject
-nullableTypeSpecification = beeSon1.typeSpecificationManager.getNullableTypeSpecification()
-beeSon2 = new BeeSon({ typeSpecificationManager: nullableTypeSpecification })
+nullableTypeManager = beeSon1.typeManager.getNullableTypeManager()
+beeSon2 = new BeeSon({ typeManager: nullableTypeManager })
 beeSon2.json = json // does not throw error
 ```

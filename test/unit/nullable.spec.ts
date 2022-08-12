@@ -1,4 +1,4 @@
-import { TypeSpecification, BeeSon, Type } from '../../src'
+import { TypeManager, BeeSon, Type } from '../../src'
 
 interface TestBuddy {
   name: string
@@ -18,9 +18,9 @@ describe('nullable operations on beeson', () => {
       buddies: [{ name: 'jesus', age: 33, id: 'ID1' }],
     }
     const beeson = new BeeSon<TestDataMain>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.object)
+    expect(beeson.typeManager.type).toBe(Type.object)
     const nullableBeeSon = beeson.getNullableContainer()
-    expect(nullableBeeSon.typeSpecificationManager.type).toBe(Type.nullableObject)
+    expect(nullableBeeSon.typeManager.type).toBe(Type.nullableObject)
     const nullableJsonBytes = nullableBeeSon.serialize()
     const nullableBeeSonAgain = await BeeSon.deserialize(nullableJsonBytes)
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
@@ -55,9 +55,9 @@ describe('nullable operations on beeson', () => {
     nullableBeeSon.setIndexNullable('name', false)
     const nullableBeeSonAgain = await BeeSon.deserialize(nullableBeeSon.serialize())
     expect(nullableBeeSonAgain.json).toStrictEqual(nullableBeeSon.json)
-    const abiObject = nullableBeeSon.typeSpecificationManager.getDnaObject()
-    const typeSpecificationManager = TypeSpecification.loadDnaObject(abiObject)
-    const beesonAgain = new BeeSon({ typeSpecificationManager })
+    const abiObject = nullableBeeSon.typeManager.getDnaObject()
+    const typeManager = TypeManager.loadDnaObject(abiObject)
+    const beesonAgain = new BeeSon({ typeManager })
     beesonAgain.json = json
     beesonAgain.json = json2
     expect(beesonAgain.json).toStrictEqual(json2)

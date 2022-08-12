@@ -1,6 +1,6 @@
 import { makeChunkedFile } from '@fairdatasociety/bmt-js'
 import { BeeSon, Type } from '../../src'
-import { HEADER_BYTE_LENGTH, TypeSpecification } from '../../src/type-specification'
+import { HEADER_BYTE_LENGTH, TypeManager } from '../../src/type-specification'
 import { createStorage, SEGMENT_SIZE } from '../../src/utils'
 export { Reference } from '../../src/types'
 
@@ -25,11 +25,11 @@ describe('superbeeson', () => {
   it('should serialize object', async () => {
     const beeson = new BeeSon<TestDataMain>({ json })
     const beesonBytes = beeson.serialize()
-    const beesonTypeSpecBytes = beeson.typeSpecificationManager.serialize()
-    expect(beeson.typeSpecificationManager.type).toBe(Type.object)
+    const beesonTypeSpecBytes = beeson.typeManager.serialize()
+    expect(beeson.typeManager.type).toBe(Type.object)
     expect(beeson.superBeeSon).toBe(false)
     beeson.superBeeSon = true
-    expect(beeson.typeSpecificationManager.type).toBe(Type.object)
+    expect(beeson.typeManager.type).toBe(Type.object)
     expect(beeson.superBeeSon).toBe(true)
     const superBeesonBytes = beeson.serialize()
     // the segment size is the TypeSpecification reference
@@ -51,7 +51,7 @@ describe('superbeeson', () => {
   it('should deserialize object', async () => {
     const storage = createStorage()
     const beeson = new BeeSon<TestDataMain>({ json })
-    const beesonTypeSpecBytes = beeson.typeSpecificationManager.serialize()
+    const beesonTypeSpecBytes = beeson.typeManager.serialize()
     const typeRef = makeChunkedFile(beesonTypeSpecBytes).address()
     storage.storageSaverSync(typeRef, beesonTypeSpecBytes)
     beeson.superBeeSon = true
@@ -60,8 +60,8 @@ describe('superbeeson', () => {
     expect(beeson.superBeeSon).toBe(beesonAgain.superBeeSon)
     expect(beesonAgain.json).toStrictEqual(beeson.json)
     // not with dnaObject
-    const dnaObject = beesonAgain.typeSpecificationManager.getDnaObject()
-    const beeSonAgain2 = new BeeSon({ typeSpecificationManager: TypeSpecification.loadDnaObject(dnaObject) })
+    const dnaObject = beesonAgain.typeManager.getDnaObject()
+    const beeSonAgain2 = new BeeSon({ typeManager: TypeManager.loadDnaObject(dnaObject) })
     beeSonAgain2.json = json
     const beesonBytesAgain = beeSonAgain2.serialize()
     expect(beesonBytesAgain).toStrictEqual(beesonBytes)
@@ -71,17 +71,15 @@ describe('superbeeson', () => {
     const storage = createStorage()
     const beeson = new BeeSon<TestDataMain>({ json })
     const beesonBytesFull = beeson.serialize()
-    const typeSpecBytes = beeson.typeSpecificationManager.serialize()
-    const buddiesArray = beeson.typeSpecificationManager.typeDefinitions.filter(
-      t => t.marker === 'buddies',
-    )[0]
-    const buddiesTypeSpecBytes = buddiesArray.beeSon.typeSpecificationManager.serialize()
+    const typeSpecBytes = beeson.typeManager.serialize()
+    const buddiesArray = beeson.typeManager.typeDefinitions.filter(t => t.marker === 'buddies')[0]
+    const buddiesTypeSpecBytes = buddiesArray.beeSon.typeManager.serialize()
     const typeRef = makeChunkedFile(buddiesTypeSpecBytes).address()
     storage.storageSaverSync(typeRef, buddiesTypeSpecBytes)
 
     buddiesArray.beeSon.superBeeSon = true
     const superBeesonBytes = beeson.serialize()
-    const superTypeSpecBytes = beeson.typeSpecificationManager.serialize()
+    const superTypeSpecBytes = beeson.typeManager.serialize()
     // new typeSpecificationBytes should be bigger than the original one with the referenced abi spec.
     expect(superTypeSpecBytes.length).toBe(typeSpecBytes.length + SEGMENT_SIZE)
     // superBeeSonBytes should be greater by segment size because its arra element segments padded with zeros

@@ -1,4 +1,4 @@
-import { TypeSpecification, BeeSon, Type } from '../../src'
+import { TypeManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/marshalling/address-serializer'
 
@@ -6,7 +6,7 @@ describe('beeson', () => {
   it('should work with integer type', async () => {
     const json = 123
     const beeson = new BeeSon<number>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.int32)
+    expect(beeson.typeManager.type).toBe(Type.int32)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
@@ -22,7 +22,7 @@ describe('beeson', () => {
   it('should work with floating type', async () => {
     const json = 123.123
     const beeson = new BeeSon<number>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.float64)
+    expect(beeson.typeManager.type).toBe(Type.float64)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
@@ -37,7 +37,7 @@ describe('beeson', () => {
     const json = 'john coke'
     const beeson = new BeeSon<string>({ json })
     expect(beeson.json).toBe(json)
-    expect(beeson.typeSpecificationManager.type).toBe(Type.string)
+    expect(beeson.typeManager.type).toBe(Type.string)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
     expect(beesonAgain.json).toBe(json)
@@ -49,7 +49,7 @@ describe('beeson', () => {
   it('should work with boolean type', async () => {
     const json = false
     const beeson = new BeeSon<boolean>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.boolean)
+    expect(beeson.typeManager.type).toBe(Type.boolean)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
@@ -64,7 +64,7 @@ describe('beeson', () => {
   it('should work with BigInt type', async () => {
     const json = 1n
     const beeson = new BeeSon<BigInt>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.int64)
+    expect(beeson.typeManager.type).toBe(Type.int64)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
@@ -79,7 +79,7 @@ describe('beeson', () => {
   it('should work with manifest CID', async () => {
     const json = 'bah5acgzadxcwdayt52nxhygvpou6e63p2vsl23m4kc63f2hyk2avg4joafoq'
     const beeson = new BeeSon<SwarmManifestCid>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.swarmCac)
+    expect(beeson.typeManager.type).toBe(Type.swarmCac)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const beesonAgain = await BeeSon.deserialize(beeson.serialize())
@@ -96,7 +96,7 @@ describe('beeson', () => {
   it('should work with feed CID', async () => {
     const json = 'bah5qcgzaymd4255atbv6kkelx75ezqaq64n7vhxgbkw64bjfjedougktli6q'
     const beeson = new BeeSon<SwarmFeedCid>({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.swarmSoc)
+    expect(beeson.typeManager.type).toBe(Type.swarmSoc)
     expect(beeson.json).toBe(json)
     // serialisation correctness
     const serialized = beeson.serialize()
@@ -114,11 +114,11 @@ describe('beeson', () => {
   it('should work with typed arrays', async () => {
     const json = [0, 1, 2, 3, 5, 6]
     const beeson = new BeeSon({ json })
-    expect(beeson.typeSpecificationManager.type).toBe(Type.array)
+    expect(beeson.typeManager.type).toBe(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
+    const bytes = beeson.typeManager.serialize()
+    const beeSonManager = (await TypeManager.deserialize(bytes)).typeManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -142,11 +142,11 @@ describe('beeson', () => {
   it('should work with 1 level object', async () => {
     let json = { name: 'john coke', age: 48, id: 'ID2' }
     const beeson = new BeeSon({ json })
-    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.object)
+    expect(beeson.typeManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
+    const bytes = beeson.typeManager.serialize()
+    const beeSonManager = (await TypeManager.deserialize(bytes)).typeManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -170,11 +170,11 @@ describe('beeson', () => {
   it('should work with polimorfic arrays', async () => {
     let json = [0, '1', false, { name: 'john coke' }, 5]
     const beeson = new BeeSon({ json })
-    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.array)
+    expect(beeson.typeManager.type).toStrictEqual(Type.array)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
+    const bytes = beeson.typeManager.serialize()
+    const beeSonManager = (await TypeManager.deserialize(bytes)).typeManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)
@@ -200,11 +200,11 @@ describe('beeson', () => {
   it('should work with complex object', async () => {
     let json = { name: 'john coke', age: 48, id: 'ID2', buddies: [{ name: 'jesus', age: 33, id: 'ID1' }] }
     const beeson = new BeeSon({ json })
-    expect(beeson.typeSpecificationManager.type).toStrictEqual(Type.object)
+    expect(beeson.typeManager.type).toStrictEqual(Type.object)
     expect(beeson.json).toStrictEqual(json)
     // serialisation correctness
-    const bytes = beeson.typeSpecificationManager.serialize()
-    const beeSonManager = (await TypeSpecification.deserialize(bytes)).typeSpecificationManager
+    const bytes = beeson.typeManager.serialize()
+    const beeSonManager = (await TypeManager.deserialize(bytes)).typeManager
     expect(bytes).toStrictEqual(beeSonManager.serialize())
     const serialised = beeson.serialize()
     const beesonAgain = await BeeSon.deserialize(serialised)

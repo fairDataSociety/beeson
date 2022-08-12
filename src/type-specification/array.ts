@@ -1,5 +1,5 @@
 import { makeChunkedFile } from '@fairdatasociety/bmt-js'
-import { TypeSpecification, Header, TypeDefinitionA } from '.'
+import { TypeManager, Header, TypeDefinitionA } from '.'
 import { BeeSon } from '../beeson'
 import { BitVector } from '../bitvector'
 import {
@@ -22,8 +22,8 @@ const ARRAY_TYPE_DEF_LENGTH = 6
 
 type TypeDefElement = Bytes<6>
 
-export function serializeArray(typeSpecification: TypeSpecification<Type.array>): Uint8Array {
-  const { typeDefArray, superTypeRefArray } = serializeTypeDefinitions(typeSpecification.typeDefinitions)
+export function serializeArray(typeManager: TypeManager<Type.array>): Uint8Array {
+  const { typeDefArray, superTypeRefArray } = serializeTypeDefinitions(typeManager.typeDefinitions)
   const flattenTypeDefs = flattenBytesArray(typeDefArray)
   const flattenSuperTypeRefs = flattenBytesArray(superTypeRefArray)
 
@@ -47,7 +47,7 @@ export async function deserializeArray(
   data: Uint8Array,
   header: Header<Type.array>,
   storageLoader?: StorageLoader,
-): Promise<{ typeSpecificationManager: TypeSpecification<Type.array>; typeSpecificationByteSize: number }> {
+): Promise<{ typeManager: TypeManager<Type.array>; typeSpecificationByteSize: number }> {
   const lengths = deserializeTypeSpecLengths(data)
   const { typeDefArrayLength, superTypeRefArrayLength } = lengths
   let offset = lengths.offset
@@ -76,16 +76,12 @@ export async function deserializeArray(
       const refOffset = bytesUntilSuperBeeSonRefs + j * SEGMENT_SIZE
       const superTypeRef = data.slice(refOffset, refOffset + SEGMENT_SIZE) as Bytes<32>
       const typeSpecificationData = await storageLoader(superTypeRef)
-      const { typeSpecificationManager } = await TypeSpecification.deserialize(
-        typeSpecificationData,
-        undefined,
-        storageLoader,
-      )
-      typeSpecificationManager.superBeeSon = true
+      const { typeManager } = await TypeManager.deserialize(typeSpecificationData, undefined, storageLoader)
+      typeManager.superBeeSon = true
       // TODO check `typeSpecificationManager` header has the same version as current
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
       })
 
       j++
@@ -93,10 +89,10 @@ export async function deserializeArray(
       // not superBeeSon
       assertBeeSonType(type)
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(header.version, type, null)
+      const typeManager = new TypeManager(header.version, type, null)
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
       })
     }
 
@@ -111,13 +107,13 @@ export async function deserializeArray(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(header.version, Type.array, typeDefinitions),
+    typeManager: new TypeManager(header.version, Type.array, typeDefinitions),
     typeSpecificationByteSize,
   }
 }
 
-export function serializeNullableArray(typeSpecification: TypeSpecification<Type.nullableArray>): Uint8Array {
-  const { typeDefArray, superTypeRefArray, bv } = serializeTypeDefinitions(typeSpecification.typeDefinitions)
+export function serializeNullableArray(typeManager: TypeManager<Type.nullableArray>): Uint8Array {
+  const { typeDefArray, superTypeRefArray, bv } = serializeTypeDefinitions(typeManager.typeDefinitions)
   const flattenTypeDefs = flattenBytesArray(typeDefArray)
   const flattenSuperTypeRefs = flattenBytesArray(superTypeRefArray)
   const bitVectorSegments = segmentPaddingFromRight(bv.bitVector)
@@ -143,7 +139,7 @@ export async function deserializeNullableArray(
   header: Header<Type.nullableArray>,
   storageLoader?: StorageLoader,
 ): Promise<{
-  typeSpecificationManager: TypeSpecification<Type.nullableArray>
+  typeManager: TypeManager<Type.nullableArray>
   typeSpecificationByteSize: number
 }> {
   const lengths = deserializeTypeSpecLengths(data)
@@ -181,17 +177,13 @@ export async function deserializeNullableArray(
       const superTypeRef = data.slice(refOffset, refOffset + SEGMENT_SIZE) as Bytes<32>
 
       const typeSpecificationData = await storageLoader(superTypeRef)
-      const { typeSpecificationManager } = await TypeSpecification.deserialize(
-        typeSpecificationData,
-        undefined,
-        storageLoader,
-      )
-      typeSpecificationManager.nullable = nullable
-      typeSpecificationManager.superBeeSon = true
+      const { typeManager } = await TypeManager.deserialize(typeSpecificationData, undefined, storageLoader)
+      typeManager.nullable = nullable
+      typeManager.superBeeSon = true
       //TODO check `typeSpecificationManager` header has the same version as current
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
       })
 
       j++
@@ -200,10 +192,10 @@ export async function deserializeNullableArray(
       assertBeeSonType(type)
 
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(header.version, type, null, nullable)
+      const typeManager = new TypeManager(header.version, type, null, nullable)
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
       })
     }
 
@@ -218,7 +210,7 @@ export async function deserializeNullableArray(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(header.version, Type.nullableArray, typeDefinitions),
+    typeManager: new TypeManager(header.version, Type.nullableArray, typeDefinitions),
     typeSpecificationByteSize,
   }
 }
@@ -241,7 +233,7 @@ function serializeTypeDefinitions(typeDefinitions: TypeDefinitionA[]): RSerializ
         new Bytes([...serializeType(SUPER_BEESON_TYPE), ...serializeUint32(typeDefinition.segmentLength)]),
       )
       // calculate typeSpecification's reference (Swarm hash)
-      const manager = typeDefinition.beeSon.typeSpecificationManager
+      const manager = typeDefinition.beeSon.typeManager
       manager.superBeeSon = false
       const typeSpecData = manager.serialize()
       manager.superBeeSon = true
@@ -250,13 +242,13 @@ function serializeTypeDefinitions(typeDefinitions: TypeDefinitionA[]): RSerializ
     } else {
       typeDefArray.push(
         new Bytes([
-          ...serializeType(typeDefinition.beeSon.typeSpecificationManager.type),
+          ...serializeType(typeDefinition.beeSon.typeManager.type),
           ...serializeUint32(typeDefinition.segmentLength),
         ]),
       )
     }
 
-    if (typeDefinition.beeSon.typeSpecificationManager.nullable) {
+    if (typeDefinition.beeSon.typeManager.nullable) {
       bv.setBit(index)
     }
   }

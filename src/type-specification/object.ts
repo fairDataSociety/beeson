@@ -1,4 +1,4 @@
-import { TypeSpecification, Header, TypeDefinitionO } from '.'
+import { TypeManager, Header, TypeDefinitionO } from '.'
 import { BeeSon } from '../beeson'
 import {
   Type,
@@ -30,12 +30,10 @@ const OBJECT_TYPE_DEF_LENGTH = 8
 
 type TypeDefElement = Bytes<8>
 
-export function serializeNullableObject(
-  typeSpecification: TypeSpecification<Type.nullableObject>,
-): Uint8Array {
+export function serializeNullableObject(typeManager: TypeManager<Type.nullableObject>): Uint8Array {
   // this marker array with be correspond to the typeDefs and superTypeDefs order
-  const serializedMarkers = getSerializedMarkers(typeSpecification)
-  const typeDefinitions = typeSpecification.typeDefinitions
+  const serializedMarkers = getSerializedMarkers(typeManager)
+  const typeDefinitions = typeManager.typeDefinitions
   const { typeDefArray, superTypeRefArray, bv } = serializeTypeDefinitions(typeDefinitions, serializedMarkers)
   const flattenTypeDefs = flattenBytesArray(typeDefArray)
   const flattenSuperTypeRefs = flattenBytesArray(superTypeRefArray)
@@ -57,7 +55,7 @@ export async function deserializeNullableObject(
   header: Header<Type.nullableObject>,
   storageLoader?: StorageLoader,
 ): Promise<{
-  typeSpecificationManager: TypeSpecification<Type.nullableObject>
+  typeManager: TypeManager<Type.nullableObject>
   typeSpecificationByteSize: number
 }> {
   const lengths = deserializeTypeSpecLengths(data)
@@ -107,17 +105,13 @@ export async function deserializeNullableObject(
       const superTypeRef = data.slice(refOffset, refOffset + SEGMENT_SIZE) as Bytes<32>
 
       const typeSpecificationData = await storageLoader(superTypeRef)
-      const { typeSpecificationManager } = await TypeSpecification.deserialize(
-        typeSpecificationData,
-        header,
-        storageLoader,
-      )
-      typeSpecificationManager.superBeeSon = true
-      typeSpecificationManager.nullable = nullable
+      const { typeManager } = await TypeManager.deserialize(typeSpecificationData, header, storageLoader)
+      typeManager.superBeeSon = true
+      typeManager.nullable = nullable
       //TODO check `typeSpecificationManager` header is the same as current
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
         marker,
       })
 
@@ -126,10 +120,10 @@ export async function deserializeNullableObject(
       assertBeeSonType(type)
 
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(header.version, type, null, nullable)
+      const typeManager = new TypeManager(header.version, type, null, nullable)
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
         marker,
       })
     }
@@ -145,7 +139,7 @@ export async function deserializeNullableObject(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(header.version, Type.nullableObject, typeDefinitions),
+    typeManager: new TypeManager(header.version, Type.nullableObject, typeDefinitions),
     typeSpecificationByteSize,
   }
 }
@@ -154,7 +148,7 @@ export async function deserializeObject(
   data: Uint8Array,
   header: Header<Type.object>,
   storageLoader?: StorageLoader,
-): Promise<{ typeSpecificationManager: TypeSpecification<Type.object>; typeSpecificationByteSize: number }> {
+): Promise<{ typeManager: TypeManager<Type.object>; typeSpecificationByteSize: number }> {
   const lengths = deserializeTypeSpecLengths(data)
   const { typeDefArrayLength, superTypeRefArrayLength, markersByteLength } = lengths
   let offset = lengths.offset
@@ -190,16 +184,12 @@ export async function deserializeObject(
       const refOffset = bytesUntilSuperBeeSonRefs + j * SEGMENT_SIZE
       const superTypeRef = data.slice(refOffset, refOffset + SEGMENT_SIZE) as Bytes<32>
       const typeSpecificationData = await storageLoader(superTypeRef)
-      const { typeSpecificationManager } = await TypeSpecification.deserialize(
-        typeSpecificationData,
-        undefined,
-        storageLoader,
-      )
-      typeSpecificationManager.superBeeSon = true
+      const { typeManager } = await TypeManager.deserialize(typeSpecificationData, undefined, storageLoader)
+      typeManager.superBeeSon = true
       //TODO check `typeSpecificationManager` header is the same as current
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
         marker,
       })
 
@@ -208,10 +198,10 @@ export async function deserializeObject(
       assertBeeSonType(type)
 
       // if deserialized type is container type, then its typeSpecification has to be deserialized in a different function call
-      const typeSpecificationManager = new TypeSpecification(header.version, type, null)
+      const typeManager = new TypeManager(header.version, type, null)
       typeDefinitions.push({
         segmentLength,
-        beeSon: new BeeSon({ typeSpecificationManager }),
+        beeSon: new BeeSon({ typeManager }),
         marker,
       })
     }
@@ -227,15 +217,15 @@ export async function deserializeObject(
   }
 
   return {
-    typeSpecificationManager: new TypeSpecification(header.version, Type.object, typeDefinitions),
+    typeManager: new TypeManager(header.version, Type.object, typeDefinitions),
     typeSpecificationByteSize,
   }
 }
 
-export function serializeObject(typeSpecification: TypeSpecification<Type.object>): Uint8Array {
+export function serializeObject(typeManager: TypeManager<Type.object>): Uint8Array {
   // this marker array with be correspond to the typeDefs and superTypeDefs order
-  const serializedMarkers = getSerializedMarkers(typeSpecification)
-  const typeDefinitions = typeSpecification.typeDefinitions
+  const serializedMarkers = getSerializedMarkers(typeManager)
+  const typeDefinitions = typeManager.typeDefinitions
   const { typeDefArray, superTypeRefArray } = serializeTypeDefinitions(typeDefinitions, serializedMarkers)
   const flattenTypeDefs = flattenBytesArray(typeDefArray)
   const flattenSuperTypeRefs = flattenBytesArray(superTypeRefArray)
@@ -285,12 +275,12 @@ function serializeTypeDefinitions(
 
   let index = 0
   for (const typeDefinition of typeDefinitions.values()) {
-    let type: number = typeDefinition.beeSon.typeSpecificationManager.type
+    let type: number = typeDefinition.beeSon.typeManager.type
 
     if (typeDefinition.beeSon.superBeeSon) {
       type = SUPER_BEESON_TYPE
       // calculate typeSpecification's reference (Swarm hash)
-      const manager = typeDefinition.beeSon.typeSpecificationManager
+      const manager = typeDefinition.beeSon.typeManager
       manager.superBeeSon = false
       const typeSpecData = manager.serialize()
       manager.superBeeSon = true
@@ -306,7 +296,7 @@ function serializeTypeDefinitions(
       ]),
     )
 
-    if (typeDefinition.beeSon.typeSpecificationManager.nullable) {
+    if (typeDefinition.beeSon.typeManager.nullable) {
       bv.setBit(index)
     }
     index++
@@ -344,9 +334,9 @@ function deserializeTypeSpecLengths(data: Uint8Array): RDeserializeTypeSpecLengt
 
 /** Also changes the order in the typeDefinitions of the typeSpecification with respect to the superBeeSon types */
 function getSerializedMarkers(
-  typeSpecification: TypeSpecification<Type.object> | TypeSpecification<Type.nullableObject>,
+  typeManager: TypeManager<Type.object> | TypeManager<Type.nullableObject>,
 ): SerializedMarkers {
-  const markers = typeSpecification.typeDefinitions.map(typeDef => typeDef.marker)
+  const markers = typeManager.typeDefinitions.map(typeDef => typeDef.marker)
 
   // this marker array with be correspond to the typeDefs and superTypeDefs order
   return serializeMarkers(markers)

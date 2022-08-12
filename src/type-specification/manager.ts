@@ -114,10 +114,10 @@ type TypeDefinitions<T extends Type> = T extends Type.array | Type.nullableArray
   ? TypeDefinitionO[]
   : null
 
-type NullableContainerTypeSpecification<T extends Type> = T extends Type.array
-  ? TypeSpecification<Type.nullableArray>
+type NullableContainerTypeManager<T extends Type> = T extends Type.array
+  ? TypeManager<Type.nullableArray>
   : T extends Type.object
-  ? TypeSpecification<Type.nullableObject>
+  ? TypeManager<Type.nullableObject>
   : never
 
 /**
@@ -127,7 +127,7 @@ type NullableContainerTypeSpecification<T extends Type> = T extends Type.array
  * Other flags can be set that modify the serialization or the possible values of the BeeSon value such as
  * nullability or typeSpecification marshalling
  */
-export class TypeSpecification<T extends Type> {
+export class TypeManager<T extends Type> {
   constructor(
     /** BeeSon version */
     private _version: Version,
@@ -158,41 +158,35 @@ export class TypeSpecification<T extends Type> {
   }
 
   /**
-   * Asserts whether the given JsonValue satisfies its corresponding TypeSpecification
+   * Asserts whether the given JsonValue satisfies its corresponding Type definition
    */
   // eslint-disable-next-line complexity
   public assertJsonValue(value: unknown): asserts value is JsonValue {
     if (this.nullable && isNull(value)) return
-    if (isTypeSpecificaitonManagerType(this, Type.swarmCac)) {
+    if (isTypeManagerType(this, Type.swarmCac)) {
       return assertSwarmManifestCid(value)
     }
-    if (isTypeSpecificaitonManagerType(this, Type.swarmSoc)) {
+    if (isTypeManagerType(this, Type.swarmSoc)) {
       return assertSwarmFeedCid(value)
     }
-    if (
-      isTypeSpecificaitonManagerType(this, Type.float32) ||
-      isTypeSpecificaitonManagerType(this, Type.float64)
-    ) {
+    if (isTypeManagerType(this, Type.float32) || isTypeManagerType(this, Type.float64)) {
       return assertNumber(value)
     }
     if (
-      isTypeSpecificaitonManagerType(this, Type.uint8) ||
-      isTypeSpecificaitonManagerType(this, Type.int8) ||
-      isTypeSpecificaitonManagerType(this, Type.int16) ||
-      isTypeSpecificaitonManagerType(this, Type.int32)
+      isTypeManagerType(this, Type.uint8) ||
+      isTypeManagerType(this, Type.int8) ||
+      isTypeManagerType(this, Type.int16) ||
+      isTypeManagerType(this, Type.int32)
     ) {
       return assertInteger(value)
     }
-    if (isTypeSpecificaitonManagerType(this, Type.int64)) {
+    if (isTypeManagerType(this, Type.int64)) {
       return assertBigInt(value)
     }
-    if (isTypeSpecificaitonManagerType(this, Type.string)) {
+    if (isTypeManagerType(this, Type.string)) {
       return assertString(value)
     }
-    if (
-      isTypeSpecificaitonManagerType(this, Type.array) ||
-      isTypeSpecificaitonManagerType(this, Type.nullableArray)
-    ) {
+    if (isTypeManagerType(this, Type.array) || isTypeManagerType(this, Type.nullableArray)) {
       assertArray(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionA[]
       if (value.length !== typeDefs.length) {
@@ -203,10 +197,7 @@ export class TypeSpecification<T extends Type> {
 
       return
     }
-    if (
-      isTypeSpecificaitonManagerType(this, Type.object) ||
-      isTypeSpecificaitonManagerType(this, Type.nullableObject)
-    ) {
+    if (isTypeManagerType(this, Type.object) || isTypeManagerType(this, Type.nullableObject)) {
       assertObject(value)
       const objectKeys = Object.keys(value)
       const typeDefs = this.typeDefinitions as TypeDefinitionO[]
@@ -226,10 +217,10 @@ export class TypeSpecification<T extends Type> {
 
       return
     }
-    if (isTypeSpecificaitonManagerType(this, Type.boolean)) {
+    if (isTypeManagerType(this, Type.boolean)) {
       return assertBoolean(value)
     }
-    if (isTypeSpecificaitonManagerType(this, Type.null)) {
+    if (isTypeManagerType(this, Type.null)) {
       return assertNull(value)
     }
 
@@ -240,49 +231,49 @@ export class TypeSpecification<T extends Type> {
 
   /** Get DNA Object of the BeeSon which is a JSON representation of the Header and the TypeSpecification */
   public getDnaObject(): DnaObject<T> {
-    if (isTypeSpecificaitonManagerType(this, Type.array)) {
+    if (isTypeManagerType(this, Type.array)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
+            typeSpecification: typeDef.beeSon.typeManager.getDnaObject(),
           }
         }) as DnaChildren<T>,
         superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
-    } else if (isTypeSpecificaitonManagerType(this, Type.nullableArray)) {
+    } else if (isTypeManagerType(this, Type.nullableArray)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
-            nullable: typeDef.beeSon.typeSpecificationManager.nullable,
+            typeSpecification: typeDef.beeSon.typeManager.getDnaObject(),
+            nullable: typeDef.beeSon.typeManager.nullable,
           }
         }) as DnaChildren<T>,
         superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
-    } else if (isTypeSpecificaitonManagerType(this, Type.nullableObject)) {
+    } else if (isTypeManagerType(this, Type.nullableObject)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
-            nullable: typeDef.beeSon.typeSpecificationManager.nullable,
+            typeSpecification: typeDef.beeSon.typeManager.getDnaObject(),
+            nullable: typeDef.beeSon.typeManager.nullable,
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
         superBeeSon: this.superBeeSon as DnaSuperBeeSon<T>,
       }
-    } else if (isTypeSpecificaitonManagerType(this, Type.object)) {
+    } else if (isTypeManagerType(this, Type.object)) {
       return {
         type: this._type,
         children: this._typeDefinitions.map(typeDef => {
           return {
             segmentLength: typeDef.segmentLength,
-            typeSpecification: typeDef.beeSon.typeSpecificationManager.getDnaObject(),
+            typeSpecification: typeDef.beeSon.typeManager.getDnaObject(),
             marker: typeDef.marker,
           }
         }) as DnaChildren<T>,
@@ -305,7 +296,7 @@ export class TypeSpecification<T extends Type> {
     typeSpecification: DnaObject<T>,
     version = Version.unpackedV0_1,
     nullable = false,
-  ): TypeSpecification<T> {
+  ): TypeManager<T> {
     assertVersion(version)
 
     if (isDnaObjectType(typeSpecification, Type.array)) {
@@ -313,88 +304,82 @@ export class TypeSpecification<T extends Type> {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-            ) as TypeSpecification<any>,
+            typeManager: TypeManager.loadDnaObject(child.typeSpecification, version) as TypeManager<any>,
           }),
         }
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         version,
         Type.array,
         typeDefinitions,
         nullable,
         typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
+      ) as TypeManager<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableArray)) {
       const typeDefinitions: TypeDefinitionA[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
+            typeManager: TypeManager.loadDnaObject(
               child.typeSpecification,
               version,
               child.nullable,
-            ) as TypeSpecification<any>,
+            ) as TypeManager<any>,
           }),
         }
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         version,
         Type.nullableArray,
         typeDefinitions,
         nullable,
         typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
+      ) as TypeManager<T>
     } else if (isDnaObjectType(typeSpecification, Type.object)) {
       const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
-              child.typeSpecification,
-              version,
-            ) as TypeSpecification<any>,
+            typeManager: TypeManager.loadDnaObject(child.typeSpecification, version) as TypeManager<any>,
           }),
           marker: child.marker,
         }
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         version,
         Type.object,
         typeDefinitions,
         nullable,
         typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
+      ) as TypeManager<T>
     } else if (isDnaObjectType(typeSpecification, Type.nullableObject)) {
       const typeDefinitions: TypeDefinitionO[] = typeSpecification.children.map(child => {
         return {
           segmentLength: child.segmentLength,
           beeSon: new BeeSon({
-            typeSpecificationManager: TypeSpecification.loadDnaObject(
+            typeManager: TypeManager.loadDnaObject(
               child.typeSpecification,
               version,
               child.nullable,
-            ) as TypeSpecification<any>,
+            ) as TypeManager<any>,
           }),
           marker: child.marker,
         }
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         version,
         Type.nullableObject,
         typeDefinitions,
         nullable,
         typeSpecification.superBeeSon,
-      ) as TypeSpecification<T>
+      ) as TypeManager<T>
     }
 
-    return new TypeSpecification(
+    return new TypeManager(
       version,
       typeSpecification.type,
       null as TypeDefinitions<T>,
@@ -404,13 +389,13 @@ export class TypeSpecification<T extends Type> {
   }
 
   /**
-   * Translate the in memory TypeSpecificationManager into bytes
+   * Translate the in-memory instance into bytes
    *
    * @param withoutBlobHeader used mainly at container types
    * @returns bytes in Uint8Array
    */
   public serialize(withoutBlobHeader = false): Uint8Array {
-    const header = withoutBlobHeader ? new Uint8Array() : this.typeSpecificationHeader()
+    const header = withoutBlobHeader ? new Uint8Array() : this.typeHeader()
 
     // if the serialization is not root object and it is a superbeeson, there is no need for typespec
     if (withoutBlobHeader && this.superBeeSon) {
@@ -419,14 +404,14 @@ export class TypeSpecification<T extends Type> {
 
     let typeSpecification: Uint8Array
 
-    if (isTypeSpecificaitonManagerType(this, Type.array)) {
-      typeSpecification = serializeArray(this as TypeSpecification<Type.array>)
+    if (isTypeManagerType(this, Type.array)) {
+      typeSpecification = serializeArray(this as TypeManager<Type.array>)
     } else if (this._type === Type.object) {
-      typeSpecification = serializeObject(this as TypeSpecification<Type.object>)
+      typeSpecification = serializeObject(this as TypeManager<Type.object>)
     } else if (this._type === Type.nullableArray) {
-      typeSpecification = serializeNullableArray(this as TypeSpecification<Type.nullableArray>)
+      typeSpecification = serializeNullableArray(this as TypeManager<Type.nullableArray>)
     } else if (this._type === Type.nullableObject) {
-      typeSpecification = serializeNullableObject(this as TypeSpecification<Type.nullableObject>)
+      typeSpecification = serializeNullableObject(this as TypeManager<Type.nullableObject>)
     } else {
       // cannot be superBeeson if the type is not containerType
       return header // no padding required
@@ -436,7 +421,7 @@ export class TypeSpecification<T extends Type> {
     // in case of SuperBeeSon only the typespecification's BMT address will be returned.
     if (!withoutBlobHeader && this.superBeeSon) {
       this.superBeeSon = false
-      const superBeeSonHeader = this.typeSpecificationHeader()
+      const superBeeSonHeader = this.typeHeader()
       this.superBeeSon = true
       const dnaReference = makeChunkedFile(
         new Uint8Array([...superBeeSonHeader, ...typeSpecification]),
@@ -449,7 +434,7 @@ export class TypeSpecification<T extends Type> {
   }
 
   /** Header of the BeeSon in bytes */
-  public typeSpecificationHeader(): Bytes<32> {
+  public typeHeader(): Bytes<32> {
     return new Uint8Array([
       ...serializeVersion(this._version),
       ...new Uint8Array(26),
@@ -463,20 +448,18 @@ export class TypeSpecification<T extends Type> {
    * @param data DNA datablob (header + typeSpecification)
    * @param header BeeSon header
    * @param storageLoader used to resolve SuperBeeSon TypeSpecification references
-   * @returns typeSpecificationManager with the processed bytes length
+   * @returns this class' instance with the processed bytes length
    */
   public static async deserialize<T extends Type>(
     data: Uint8Array,
     header?: Header<T> | undefined,
     storageLoader?: StorageLoader,
-  ): Promise<{ typeSpecificationManager: TypeSpecification<T>; processedBytes: number }> {
+  ): Promise<{ typeManager: TypeManager<T>; processedBytes: number }> {
     let processedBytes = 0
     const headerIsPredefined = Boolean(header)
     if (!header) {
       // `data` has to have header in order to identify the beeson type, otherwise error
-      header = TypeSpecification.deserializeHeader(
-        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>,
-      ) as Header<T>
+      header = TypeManager.deserializeHeader(data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>) as Header<T>
       data = data.slice(HEADER_BYTE_LENGTH)
       processedBytes = HEADER_BYTE_LENGTH
     }
@@ -497,9 +480,7 @@ export class TypeSpecification<T extends Type> {
 
       data = await storageLoader(typeSepRef)
       //TODO check whether the version is the same that the fetched dna has
-      header = TypeSpecification.deserializeHeader(
-        data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>,
-      ) as Header<T>
+      header = TypeManager.deserializeHeader(data.slice(0, HEADER_BYTE_LENGTH) as Bytes<32>) as Header<T>
       data = data.slice(HEADER_BYTE_LENGTH)
       processedBytes += 32 // because the typeSepRef has been sliced additionally only
     }
@@ -511,7 +492,7 @@ export class TypeSpecification<T extends Type> {
       isRootSuperBeeSon,
       storageLoader,
     )
-    if (isRootSuperBeeSon) deserialization.typeSpecificationManager.superBeeSon = true
+    if (isRootSuperBeeSon) deserialization.typeManager.superBeeSon = true
 
     return deserialization
   }
@@ -522,57 +503,44 @@ export class TypeSpecification<T extends Type> {
     processedBytes: number,
     isRootSuperBeeSon: boolean,
     storageLoader?: StorageLoader,
-  ): Promise<{ typeSpecificationManager: TypeSpecification<T>; processedBytes: number }> {
+  ): Promise<{ typeManager: TypeManager<T>; processedBytes: number }> {
     if (isHeaderType(header!, Type.array)) {
-      const {
-        typeSpecificationManager: typeSpecificationManager,
-        typeSpecificationByteSize: typeSpecificationByteSize,
-      } = await deserializeArray(data, header, storageLoader)
+      const { typeManager, typeSpecificationByteSize } = await deserializeArray(data, header, storageLoader)
 
       return {
-        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        typeManager: typeManager as TypeManager<T>,
         processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.object)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = await deserializeObject(
-        data,
-        header,
-        storageLoader,
-      )
+      const { typeManager, typeSpecificationByteSize } = await deserializeObject(data, header, storageLoader)
 
       return {
-        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        typeManager: typeManager as TypeManager<T>,
         processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableArray)) {
-      const {
-        typeSpecificationManager: typeSpecificationManager,
-        typeSpecificationByteSize: typeSpecificationByteSize,
-      } = await deserializeNullableArray(data, header, storageLoader)
+      const { typeManager, typeSpecificationByteSize: typeSpecificationByteSize } =
+        await deserializeNullableArray(data, header, storageLoader)
 
       return {
-        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        typeManager: typeManager as TypeManager<T>,
         processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     } else if (isHeaderType(header!, Type.nullableObject)) {
-      const { typeSpecificationManager, typeSpecificationByteSize } = await deserializeNullableObject(
+      const { typeManager, typeSpecificationByteSize } = await deserializeNullableObject(
         data,
         header,
         storageLoader,
       )
 
       return {
-        typeSpecificationManager: typeSpecificationManager as TypeSpecification<T>,
+        typeManager: typeManager as TypeManager<T>,
         processedBytes: isRootSuperBeeSon ? processedBytes : processedBytes + typeSpecificationByteSize,
       }
     }
 
     return {
-      typeSpecificationManager: new TypeSpecification(
-        header.version,
-        header.type,
-        null as TypeDefinitions<T>,
-      ),
+      typeManager: new TypeManager(header.version, header.type, null as TypeDefinitions<T>),
       processedBytes,
     }
   }
@@ -603,45 +571,37 @@ export class TypeSpecification<T extends Type> {
    */
   public setTypeDefinitionNullable(typeDefIndex: number, nullable: boolean) {
     if (!this._typeDefinitions) throw new Error(`Type does not handle a container type`)
-    if (
-      !isTypeSpecificaitonManagerType(this, Type.nullableArray) &&
-      !isTypeSpecificaitonManagerType(this, Type.nullableObject)
-    ) {
+    if (!isTypeManagerType(this, Type.nullableArray) && !isTypeManagerType(this, Type.nullableObject)) {
       throw new Error(`The TypeSpecification does not allow nullable container here`)
     }
     if (!this.typeDefinitions[typeDefIndex]) {
       throw new Error(`there is no typedefintion on index ${typeDefIndex}`)
     }
     const oldBeeSon = this.typeDefinitions[typeDefIndex].beeSon
-    const oldDnaManager = oldBeeSon.typeSpecificationManager
+    const oldDnaManager = oldBeeSon.typeManager
     const oldTypeDefs = Array.isArray(oldDnaManager.typeDefinitions)
       ? [...oldDnaManager.typeDefinitions]
       : oldDnaManager.typeDefinitions
-    const newDnaManager = new TypeSpecification(
-      oldDnaManager.version,
-      oldDnaManager.type,
-      oldTypeDefs,
-      nullable,
-    )
-    const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
+    const newDnaManager = new TypeManager(oldDnaManager.version, oldDnaManager.type, oldTypeDefs, nullable)
+    const newBeeSon = new BeeSon({ typeManager: newDnaManager })
     newBeeSon.json = oldBeeSon.json
     //overwrite new beeson object for element
     this.typeDefinitions[typeDefIndex].beeSon = newBeeSon
   }
 
   /** get a version of this container typed BeeSon of which elements are nullable */
-  public getNullableTypeSpecification(): NullableContainerTypeSpecification<T> {
-    if (isTypeSpecificaitonManagerType(this, Type.array)) {
+  public getNullableTypeManager(): NullableContainerTypeManager<T> {
+    if (isTypeManagerType(this, Type.array)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldDnaManager = oldBeeSon.typeSpecificationManager
-        const newDnaManager = new TypeSpecification(
+        const oldDnaManager = oldBeeSon.typeManager
+        const newDnaManager = new TypeManager(
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
+        const newBeeSon = new BeeSon({ typeManager: newDnaManager })
         const newTypeDef: TypeDefinitionA = {
           segmentLength: oldTypeDef.segmentLength,
           beeSon: newBeeSon,
@@ -650,23 +610,23 @@ export class TypeSpecification<T extends Type> {
         return newTypeDef
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         this.version,
         Type.nullableArray,
         typeDefinitions,
-      ) as NullableContainerTypeSpecification<T>
+      ) as NullableContainerTypeManager<T>
     }
-    if (isTypeSpecificaitonManagerType(this, Type.object)) {
+    if (isTypeManagerType(this, Type.object)) {
       const typeDefinitions = this._typeDefinitions.map(oldTypeDef => {
         const oldBeeSon = oldTypeDef.beeSon
-        const oldDnaManager = oldBeeSon.typeSpecificationManager
-        const newDnaManager = new TypeSpecification(
+        const oldDnaManager = oldBeeSon.typeManager
+        const newDnaManager = new TypeManager(
           oldDnaManager.version,
           oldDnaManager.type,
           oldDnaManager.typeDefinitions,
           true,
         )
-        const newBeeSon = new BeeSon({ typeSpecificationManager: newDnaManager })
+        const newBeeSon = new BeeSon({ typeManager: newDnaManager })
         const newTypeDef: TypeDefinitionO = {
           ...oldTypeDef,
           beeSon: newBeeSon,
@@ -675,11 +635,11 @@ export class TypeSpecification<T extends Type> {
         return newTypeDef
       })
 
-      return new TypeSpecification(
+      return new TypeManager(
         this.version,
         Type.nullableObject,
         typeDefinitions,
-      ) as NullableContainerTypeSpecification<T>
+      ) as NullableContainerTypeManager<T>
     }
 
     throw new Error(`This TypeSpecification does not represent a nullable container value`)
@@ -687,7 +647,7 @@ export class TypeSpecification<T extends Type> {
 }
 
 /** generates the whole BeeSon DNA for any given JSON value */
-export function generateDna<T extends JsonValue>(json: T): TypeSpecification<ValueType<T>> {
+export function generateDna<T extends JsonValue>(json: T): TypeManager<ValueType<T>> {
   const type = identifyType(json)
   const version = Version.unpackedV0_1
 
@@ -702,7 +662,7 @@ export function generateDna<T extends JsonValue>(json: T): TypeSpecification<Val
       typeDefinitions.push({ beeSon, segmentLength })
     }
 
-    return new TypeSpecification(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new TypeManager(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   } else if (type === Type.object) {
     const jsonObject = json as Record<string, unknown>
     const markerArray: string[] = Object.keys(jsonObject).sort()
@@ -716,27 +676,27 @@ export function generateDna<T extends JsonValue>(json: T): TypeSpecification<Val
       typeDefinitions.push({ beeSon, segmentLength, marker })
     }
 
-    return new TypeSpecification(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
+    return new TypeManager(version, type, typeDefinitions as TypeDefinitions<ValueType<T>>)
   }
 
-  return new TypeSpecification(version, type, null as TypeDefinitions<ValueType<T>>)
+  return new TypeManager(version, type, null as TypeDefinitions<ValueType<T>>)
 }
 
-export function isTypeSpecificaitonManagerType<T extends Type>(
-  typeSpecificationManager: TypeSpecification<Type>,
+export function isTypeManagerType<T extends Type>(
+  typeManager: TypeManager<Type>,
   type: T,
-): typeSpecificationManager is TypeSpecification<T> {
-  return typeSpecificationManager.type === type
+): typeManager is TypeManager<T> {
+  return typeManager.type === type
 }
 
 export function isTypeManagerContainerType(
-  typeManager: TypeSpecification<Type>,
-): typeManager is TypeSpecification<ContainerTypes> {
+  typeManager: TypeManager<Type>,
+): typeManager is TypeManager<ContainerTypes> {
   return (
-    isTypeSpecificaitonManagerType(typeManager, Type.array) ||
-    isTypeSpecificaitonManagerType(typeManager, Type.object) ||
-    isTypeSpecificaitonManagerType(typeManager, Type.nullableArray) ||
-    isTypeSpecificaitonManagerType(typeManager, Type.nullableObject)
+    isTypeManagerType(typeManager, Type.array) ||
+    isTypeManagerType(typeManager, Type.object) ||
+    isTypeManagerType(typeManager, Type.nullableArray) ||
+    isTypeManagerType(typeManager, Type.nullableObject)
   )
 }
 
