@@ -4,6 +4,7 @@
   "description": "JSON serialisation format for web3",
   "main": "dist/index.js",
   "scripts": {
+    "prepare": "rimraf dist && npm run compile:types && npm run compile --env mode=production",
     "test": "jest --verbose --selectProjects=node:unit node:unit --config=jest.config.ts",
     "test:unit": "jest --verbose --selectProjects=node:unit node:unit --config=jest.config.ts",
     "compile": "webpack --progress --env target=node",
