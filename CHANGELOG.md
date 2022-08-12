@@ -2,6 +2,10 @@
 
 ## 0.1.0 (2022-08-12)
 
+\o/ Initial design of the BeeSon data structure. \o/
+
+For more info, please, read the projects README.md file.
+
 
 ### Features
 
