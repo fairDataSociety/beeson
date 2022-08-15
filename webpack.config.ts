@@ -13,9 +13,7 @@ interface WebpackEnvParams {
 
 const base = async (env?: Partial<WebpackEnvParams>): Promise<Configuration> => {
   const isProduction = env?.mode === 'production'
-  const filename =
-    env?.fileName ||
-    ['index', isProduction ? '.min' : null, '.js'].filter(Boolean).join('')
+  const filename = env?.fileName || ['index.js'].filter(Boolean).join('')
   const entry = Path.resolve(__dirname, 'src')
   const path = Path.resolve(__dirname, 'dist')
   const target = 'web'
@@ -82,7 +80,7 @@ const base = async (env?: Partial<WebpackEnvParams>): Promise<Configuration> => 
               ecma: 5,
               comments: false,
             },
-            sourceMap: true
+            sourceMap: true,
           },
           // Use multi-process parallel running to improve the build speed
           // Default number of concurrent runs: os.cpus().length - 1
