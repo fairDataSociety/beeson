@@ -115,7 +115,7 @@ export function serializeNullableArray(typeManager: TypeManager<Type.nullableArr
   const { typeDefArray, superTypeRefArray, bv } = serializeTypeDefinitions(typeManager.typeDefinitions)
   const flattenTypeDefs = flattenBytesArray(typeDefArray)
   const flattenSuperTypeRefs = flattenBytesArray(superTypeRefArray)
-  const bitVectorSegments = segmentPaddingFromRight(bv.bitVector)
+  const bitVectorSegments = bv.bitVector
 
   const bytes = new Uint8Array([
     ...serializeUint16(typeDefArray.length),
