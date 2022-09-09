@@ -1,4 +1,5 @@
 import { TypeManager, BeeSon, Type } from '../../src'
+import { SEGMENT_SIZE } from '../../src/utils'
 
 interface TestBuddy {
   name: string
@@ -10,6 +11,18 @@ interface TestDataMain extends TestBuddy {
 }
 
 describe('nullable operations on beeson', () => {
+  it('should have the correct bytelength for a one level array', () => {
+    const json: (string | number | null)[] = [1, 'john', 'coke']
+    const beeson = new BeeSon({ json })
+    const nullableBeeSon = beeson.getNullableContainer()
+    const ser1 = nullableBeeSon.serialize()
+    json[0] = null
+    nullableBeeSon.json = json
+    const ser2 = nullableBeeSon.serialize()
+    // since null values are not serialized
+    expect(ser1.length).toBe(ser2.length + SEGMENT_SIZE)
+  })
+
   it('should create nullable containers from strict ones', async () => {
     const json: TestDataMain = {
       name: 'john coke',
