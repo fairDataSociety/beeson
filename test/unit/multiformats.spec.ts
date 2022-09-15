@@ -25,7 +25,7 @@ describe('beeson', () => {
       },
     }
 
-    const result = `bah6acgzagzzvlpstid4tluevw3vfaapezmhheclr5zstbrm7kzvi52jhaa4a`
+    const result = `bah6acgzaseghlmme4zvgvftofrvg7mrcctm3jje3vvmw5h56jf4ncngtj4wq`
     expect(block.value).toEqual(blockValue)
     expect(block.bytes.length).toBe(64)
     expect(block.cid.toString()).toBe(result)
@@ -58,7 +58,7 @@ describe('beeson', () => {
     // encode a block
     const block = await Block.encode({ value, codec, hasher })
 
-    const result = `bah6acgzavnfndt5plpqhtgjzo4svzuflmgd3myu2uc7hldr4irch5h5dlu4a`
+    const result = `bah6acgza5oh7urstecv7kue2j4h7ce3x3esf6ncuopimtuonsqoukekfnyxa`
     // expect(block.value).toEqual(blockValue)
     expect(block.bytes.length).toBe(288)
     expect(block.cid.toString()).toBe(result)
@@ -93,7 +93,7 @@ describe('beeson', () => {
     // encode a block
     const block = await Block.encode({ value, codec, hasher })
 
-    const result = `bah6acgzaasi2aaavu7bmp5vobzhbtfk2msqmvsuuzvl6ts2hzxsiwzoefx3q`
+    const result = `bah6acgzadynfj2sof6jefyxcnvbo36pbahwjkglv2gfb3pptnf44cjwj4cba`
     // expect(block.value).toEqual(blockValue)
     expect(block.bytes.length).toBe(192)
     expect(block.cid.toString()).toBe(result)
@@ -127,7 +127,7 @@ describe('beeson', () => {
     // encode a block
     const block = await Block.encode({ value, codec, hasher })
 
-    const result = `bah6acgzakjrglswz3olz3tvelmgypkn2r67ofl6jh3cnuqsy6zysmc7rqkcq`
+    const result = `bah6acgzavrfexn2pvvoqydyzzcd6lw4hzd52slzvkav7i3u7vgxcqfmctxaq`
     // expect(block.value).toEqual(blockValue)
     expect(block.bytes.length).toBe(288)
     expect(block.cid.toString()).toBe(result)
@@ -161,9 +161,8 @@ describe('beeson', () => {
     // encode a block
     const block = await Block.encode({ value, codec, hasher })
 
-    const result = `bah6acgzaksedsxjgp53hao2p6njbgcxup4euwjgdfegynt6k3wjlw2zytlya`
+    const result = `bah6acgzaqufakm2ximqq7xnebhgg2x2hs6blymcx64uteusf5rdwnwcsdkoa`
     // expect(block.value).toEqual(blockValue)
-    expect(block.bytes.length).toBe(384)
     expect(block.cid.toString()).toBe(result)
 
     // decode a block
