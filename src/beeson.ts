@@ -115,7 +115,7 @@ export class BeeSon<T extends JsonValue> {
 
   // Swarm Hash Reference
   /**
-   * Returns a swarm hash reference
+   * Returns the swarm hash reference of the BeeSon data
    * @returns chunk address
    */
   public swarmHash(): ChunkAddress {

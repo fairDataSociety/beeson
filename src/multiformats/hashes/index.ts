@@ -2,9 +2,9 @@ import { from } from 'multiformats/hashes/hasher'
 import * as digest from 'multiformats/hashes/digest'
 import { BeeSon } from '../../beeson'
 
-export const encode = async (hashBytes: Uint8Array): Promise<Uint8Array> => {
+export const encode = async (data: Uint8Array): Promise<Uint8Array> => {
   // Serialize back to Beeson, and hash reference
-  const node = await BeeSon.deserialize(hashBytes)
+  const node = await BeeSon.deserialize(data)
   const ref = node.swarmHash()
   return digest.create(0x1b, ref).digest
 }
