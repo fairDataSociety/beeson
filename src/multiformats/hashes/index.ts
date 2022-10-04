@@ -6,6 +6,7 @@ export const encode = async (data: Uint8Array): Promise<Uint8Array> => {
   // Serialize back to Beeson, and hash reference
   const node = await BeeSon.deserialize(data)
   const ref = node.swarmHash()
+
   return digest.create(0x1b, ref).digest
 }
 

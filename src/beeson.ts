@@ -119,9 +119,10 @@ export class BeeSon<T extends JsonValue> {
    * @returns chunk address
    */
   public swarmHash(): ChunkAddress {
-    const payload = this.serialize();
-    const chunk = makeChunkedFile(payload);
-    return chunk.address();
+    const payload = this.serialize()
+    const chunk = makeChunkedFile(payload)
+
+    return chunk.address()
   }
 
   /** BeeSon type */
