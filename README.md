@@ -4,6 +4,8 @@ BeeSon is a JSON compatible serialization format which allows its elements to be
 
 > blockchain-verifiable, extensible encapsulation for schema-based object notation in Swarm
 
+[Click here to watch our explanation in YouTube](https://www.youtube.com/watch?v=s7WNFzm3vjo)
+
 # Types
 
 In JSON, values must be one of the following data types:
