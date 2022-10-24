@@ -1,5 +1,12 @@
 # Changelog
 
+### [0.1.2](https://www.github.com/fairDataSociety/beeson/compare/v0.1.1...v0.1.2) (2022-10-24)
+
+
+### Bug Fixes
+
+* nullable array nullable bitvector padding ([#12](https://www.github.com/fairDataSociety/beeson/issues/12)) ([20d0aa1](https://www.github.com/fairDataSociety/beeson/commit/20d0aa118558e56cbaf7c5e8a3cbef93a5b1fed0))
+
 ### [0.1.1](https://www.github.com/fairDataSociety/beeson/compare/v0.1.0...v0.1.1) (2022-08-15)
 
 
