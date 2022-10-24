@@ -1,3 +1,4 @@
+import { ChunkAddress, makeChunkedFile } from '@fairdatasociety/bmt-js'
 import {
   TypeManager,
   generateDna,
@@ -110,6 +111,18 @@ export class BeeSon<T extends JsonValue> {
 
   public set superBeeSon(value: boolean) {
     this._typeManager.superBeeSon = value
+  }
+
+  // Swarm Hash Reference
+  /**
+   * Returns the swarm hash reference of the BeeSon data
+   * @returns chunk address
+   */
+  public swarmHash(): ChunkAddress {
+    const payload = this.serialize()
+    const chunk = makeChunkedFile(payload)
+
+    return chunk.address()
   }
 
   /** BeeSon type */

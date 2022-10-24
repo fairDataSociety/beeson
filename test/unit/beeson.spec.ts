@@ -1,6 +1,7 @@
 import { TypeManager, BeeSon, Type } from '../../src'
 import { encodeFeedReference, encodeManifestReference } from '@ethersphere/swarm-cid'
 import { SwarmFeedCid, SwarmManifestCid } from '../../src/marshalling/address-serializer'
+import { Utils } from '@fairdatasociety/bmt-js'
 
 describe('beeson', () => {
   it('should work with integer type', async () => {
@@ -235,5 +236,18 @@ describe('beeson', () => {
     ).toThrowError(
       'BeeSon Object assertion problem at index buddies: Given JSON array has 0 length, when the typeSpecification defines 1 length',
     )
+  })
+
+  it('should produce correct hash reference', () => {
+    let json = { name: 'john coke', age: 48, id: 'ID2', buddies: [{ name: 'jesus', age: 33, id: 'ID1' }] }
+    const beeson = new BeeSon({ json })
+    expect(beeson.typeManager.type).toStrictEqual(Type.object)
+    expect(beeson.json).toStrictEqual(json)
+
+    const hash = '850a05335743210fdda409cc6d5f479782bc3057f729325245ec4766d8521a9c'
+
+    const result = beeson.swarmHash()
+
+    expect(Utils.bytesToHex(result, 64)).toEqual(hash)
   })
 })
